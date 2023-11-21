@@ -1,8 +1,13 @@
-use std::net::{SocketAddrV4, Ipv4Addr};
+use std::net::SocketAddrV4;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
+#[cfg(not(test))]
 use log::info;
+
+#[cfg(test)]
+use std::println as info;
+
 use tokio::runtime::Runtime;
 //use tokio
 use tokio::sync::watch;

@@ -1,4 +1,4 @@
-use std::{sync::atomic::{AtomicBool, Ordering}, net::{Ipv4Addr, SocketAddrV4}, time::Duration, io};
+use std::{sync::atomic::{AtomicBool, Ordering}, net::SocketAddrV4, io};
 
 use log::info;
 use tokio::{sync::watch::Receiver, net::{TcpListener, TcpStream}};
@@ -45,13 +45,10 @@ impl <'hostinfo> OQHTTPHandler<'hostinfo> {
         //println!("-=== Buffer ===-\n{}", String::from_utf8_lossy(&full_buffer).to_owned());
 
         let h_info = serde_json::to_string(&self.host_info).unwrap();
-
         let http_res = format!("{}Content-Length: {}\r\n\r\n{}", HTTP_RESPONSE_BASE, h_info.len(), h_info);
 
-        println!("-== SENDING ==-\n{}", http_res);
-
         let bytes_sent = tcp_stream.try_write(http_res.as_bytes()).unwrap();
-        println!("Sent {} bytes", bytes_sent);
+        info!("Sent {} bytes", bytes_sent);
     }
 }
 
@@ -62,11 +59,10 @@ pub async fn start(http_handler: OQHTTPHandler<'_>) {
     let mut state = true;
 
     while state {
-        println!("while start");
+
         if let Ok((s, a)) = tcp_listener.accept().await {
-            println!("Got connection from: {}", a);
+            info!("Got connection from: {}", a);
             http_handler.handle_connection(&s).await;
-            println!("Handler done!");
         }
 
         if http_handler.thread_rx.has_changed().unwrap() {
