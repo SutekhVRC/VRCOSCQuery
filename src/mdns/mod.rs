@@ -1,6 +1,6 @@
 use std::net::SocketAddrV4;
 use super::info;
-use mdns_sd::{ServiceInfo, ServiceDaemon, ServiceEvent};
+use mdns_sd::{ServiceInfo, ServiceDaemon, ServiceEvent, IfKind};
 
 pub const OSC_JSON_SERVICE: &'static str = "_oscjson._tcp.local.";
 pub const OSC_SERVICE: &'static str = "_osc._udp.local.";
@@ -26,8 +26,11 @@ impl OQMDNSHandler {
             &mdns_properties[..],
         ).unwrap();
 
+        let service_daemon = ServiceDaemon::new().unwrap();
+        service_daemon.disable_interface(IfKind::IPv6).unwrap();
+
         OQMDNSHandler {
-            service_daemon: ServiceDaemon::new().unwrap(),
+            service_daemon,
             service_info,
         }
     }
