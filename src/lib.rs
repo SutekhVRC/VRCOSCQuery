@@ -120,6 +120,16 @@ impl OSCQuery {
     }
 
     pub fn attempt_force_vrc_response_detect(&self) {
-        get_target_service(self.mdns_handler.as_ref().unwrap(), "VRChat-Client-".to_string(), OSC_JSON_SERVICE);
+        let mut i = 0;
+        loop {
+            let mdns_force = OQMDNSHandler::new(self.app_name.clone(), self.http_net);
+            mdns_force.register();
+            get_target_service(&mdns_force, "VRChat-Client-".to_string(), OSC_JSON_SERVICE);
+            mdns_force.unregister();
+            if i == 5 {
+                return;
+            }
+            i += 1;
+        }
     }
 }
