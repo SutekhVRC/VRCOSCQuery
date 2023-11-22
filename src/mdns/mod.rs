@@ -1,4 +1,4 @@
-use std::net::{Ipv4Addr, SocketAddrV4};
+use std::net::SocketAddrV4;
 use super::info;
 use mdns_sd::{ServiceInfo, ServiceDaemon, ServiceEvent};
 
@@ -35,20 +35,20 @@ impl OQMDNSHandler {
     pub fn register(&self) {
 
         self.service_daemon.register(self.service_info.clone()).unwrap();
-        info!("Registered mDNS service.");
+        info!("[+] Registered mDNS service.");
 
     }
     pub fn unregister(&self) {
-        info!("Unregistering {}", self.service_info.get_type());
         self.service_daemon.unregister(&self.service_info.get_type()).unwrap();
+        info!("[+] Unregistered {}", self.service_info.get_type());
     }
 
 }
 
-pub fn get_target_service(mdns_handler: OQMDNSHandler, match_prefix: String, s_type: &'static str) -> ServiceInfo {
+pub fn get_target_service(mdns_handler: &OQMDNSHandler, match_prefix: String, s_type: &'static str) -> ServiceInfo {
 
     let service_receiver = mdns_handler.service_daemon.browse(s_type).unwrap();
-    info!("mDNS browsing..");
+    info!("[*] mDNS browsing..");
 
     loop {
         let event = service_receiver.recv().unwrap();
@@ -56,11 +56,10 @@ pub fn get_target_service(mdns_handler: OQMDNSHandler, match_prefix: String, s_t
             ServiceEvent::ServiceResolved(service_info) => {
                 if service_info.get_fullname().starts_with(&match_prefix) {
 
-                    mdns_handler.unregister();
                     return service_info;
                 }
             },
-            _e => info!("NOT RESOLVED {:?}", _e),
+            _e => info!("[?] NOT RESOLVED {:?}", _e),
         }
     }
 
