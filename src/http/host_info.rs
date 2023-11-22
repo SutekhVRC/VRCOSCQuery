@@ -18,11 +18,11 @@ pub struct HostInfoExtensions {
 #[derive(Serialize, Deserialize)]
 pub struct HostInfo<'hostinfo> {
     #[serde(rename = "NAME")]
-    pub name: &'hostinfo str,
+    pub name: String,
     #[serde(rename = "EXTENSIONS")]
     pub extensions: HostInfoExtensions,
     #[serde(rename = "OSC_IP")]
-    pub osc_ip: &'hostinfo str,
+    pub osc_ip: String,
     #[serde(rename = "OSC_PORT")]
     pub osc_port: u16,
     #[serde(rename = "OSC_TRANSPORT")]

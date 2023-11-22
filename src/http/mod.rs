@@ -1,6 +1,7 @@
+use super::info;
+
 use std::{sync::atomic::{AtomicBool, Ordering}, net::SocketAddrV4, io};
 
-use log::info;
 use tokio::{sync::watch::Receiver, net::{TcpListener, TcpStream}};
 
 use crate::http::host_info::HostInfo;
@@ -53,8 +54,9 @@ impl <'hostinfo> OQHTTPHandler<'hostinfo> {
 }
 
 pub async fn start(http_handler: OQHTTPHandler<'_>) {
-        
+    info!("HTTP Start()");
     let tcp_listener = TcpListener::bind(http_handler.bound_addr.unwrap()).await.unwrap();
+    info!("Bound HTTP service..");
 
     let mut state = true;
 

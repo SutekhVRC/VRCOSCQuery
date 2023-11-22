@@ -4,6 +4,7 @@ use std::time::Duration;
 
 #[cfg(not(test))]
 use log::info;
+use mdns_sd::ServiceInfo;
 
 #[cfg(test)]
 use std::println as info;
@@ -14,28 +15,35 @@ use tokio::sync::watch;
 
 use crate::http::OQHTTPHandler;
 use crate::http::host_info::{HostInfo, HostInfoExtensions};
+use crate::mdns::{OQMDNSHandler, get_target_service, OSC_JSON_SERVICE};
 
-mod mdns;
-mod http;
+pub mod mdns;
+pub mod http;
 
 #[cfg(test)]
 mod tests;
 
 
 pub struct OSCQuery {
+    app_name: String,
     http_net: SocketAddrV4,
+    osc_net: SocketAddrV4,
     async_runtime: Option<Runtime>,
     thread_tx: Option<watch::Sender<AtomicBool>>,
     thread_rx: Option<watch::Receiver<AtomicBool>>,
+    mdns_service: Option<OQMDNSHandler>,
 }
 
 impl OSCQuery {
-    pub fn new(http_net: SocketAddrV4) -> Self {
+    pub fn new(app_name: String, http_net: SocketAddrV4, osc_net: SocketAddrV4) -> Self {
         OSCQuery {
+            app_name,
             http_net,
+            osc_net,
             async_runtime: None,
             thread_tx: None,
             thread_rx: None,
+            mdns_service: None,
         }
     }
 
@@ -68,7 +76,7 @@ impl OSCQuery {
 
     fn start_http(&mut self) {
 
-        info!("Staring HTTP service..");
+        info!("Staring HTTP service.. {}", self.http_net);
 
         let extensions = HostInfoExtensions {
             access: true,
@@ -79,10 +87,10 @@ impl OSCQuery {
         };
 
         let host_info = HostInfo {
-            name: "VRCOSCQuery Test",
+            name: self.app_name.clone(),
             extensions,
-            osc_ip: "127.0.0.1",
-            osc_port: 8080,
+            osc_ip: self.osc_net.ip().to_string(),
+            osc_port: self.osc_net.port(),
             osc_transport: "UDP",
         };
 
@@ -95,6 +103,21 @@ impl OSCQuery {
 
     fn start_mdns(&mut self) {
 
+        info!("Starting mDNS service..");
 
+        let mdns_handler = OQMDNSHandler::new(self.app_name.clone(), self.http_net);
+
+        info!("Registering mDNS service for {}", self.app_name);
+        mdns_handler.register();
+
+        self.mdns_service = Some(mdns_handler);
+    }
+
+    pub fn mdns_search(&mut self, service_prefix: String) -> ServiceInfo {
+
+        info!("Searching for {}", service_prefix);
+        let s_info = get_target_service(self.mdns_service.take().unwrap(), service_prefix, OSC_JSON_SERVICE);
+        info!("Got service info: {:?}", s_info);
+        s_info
     }
 }
