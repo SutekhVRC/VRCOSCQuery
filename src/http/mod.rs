@@ -4,11 +4,13 @@ use std::{sync::atomic::{AtomicBool, Ordering}, net::SocketAddrV4, io};
 
 use tokio::{sync::watch::Receiver, net::{TcpListener, TcpStream}};
 
-use crate::http::host_info::HostInfo;
+use crate::http::json_models::HostInfo;
 
-pub mod host_info;
+pub mod json_models;
 
 const HTTP_RESPONSE_BASE: &'static str = "HTTP/1.1 200\r\nContent-Type: application/json\r\n";
+
+const HTTP_INDEX: &[u8] = include_bytes!("../../index.json");
 
 pub struct OQHTTPHandler <'hostinfo>{
         thread_rx: Receiver<AtomicBool>,
@@ -20,6 +22,22 @@ impl <'hostinfo> OQHTTPHandler<'hostinfo> {
     
     pub fn new(bind_addr: SocketAddrV4, host_info: HostInfo<'hostinfo>, thread_rx: Receiver<AtomicBool>) -> Self {
         OQHTTPHandler { thread_rx, bound_addr: Some(bind_addr), host_info }
+    }
+
+    async fn http_route(&self, buffer: Vec<u8>, tcp_stream: &TcpStream) {
+
+        if buffer.starts_with("GET / HTTP/".as_bytes()) {
+            let http_index = String::from_utf8_lossy(HTTP_INDEX);
+            let http_res = format!("{}Content-Length: {}\r\n\r\n{}", HTTP_RESPONSE_BASE, HTTP_INDEX.len(), http_index);
+            tcp_stream.try_write(http_res.as_bytes()).unwrap();
+        } else if buffer.starts_with("GET /?HOST_INFO HTTP/".as_bytes()) {
+            let h_info = serde_json::to_string(&self.host_info).unwrap();
+            let http_res = format!("{}Content-Length: {}\r\n\r\n{}", HTTP_RESPONSE_BASE, h_info.len(), h_info);
+    
+            let bytes_sent = tcp_stream.try_write(http_res.as_bytes()).unwrap();
+            info!("[+] Sent {} bytes", bytes_sent);
+        } else {//LOLOLOL
+        }
     }
 
     pub async fn handle_connection(&self, tcp_stream: &TcpStream) {
@@ -43,27 +61,22 @@ impl <'hostinfo> OQHTTPHandler<'hostinfo> {
             }
         }
 
+        self.http_route(full_buffer, tcp_stream).await;
         //println!("-=== Buffer ===-\n{}", String::from_utf8_lossy(&full_buffer).to_owned());
-
-        let h_info = serde_json::to_string(&self.host_info).unwrap();
-        let http_res = format!("{}Content-Length: {}\r\n\r\n{}", HTTP_RESPONSE_BASE, h_info.len(), h_info);
-
-        let bytes_sent = tcp_stream.try_write(http_res.as_bytes()).unwrap();
-        info!("Sent {} bytes", bytes_sent);
     }
 }
 
 pub async fn start(http_handler: OQHTTPHandler<'_>) {
-    info!("HTTP Start()");
+    info!("[*] HTTP Start()");
     let tcp_listener = TcpListener::bind(http_handler.bound_addr.unwrap()).await.unwrap();
-    info!("Bound HTTP service..");
+    info!("[+] Bound HTTP service.");
 
     let mut state = true;
 
     while state {
 
         if let Ok((s, a)) = tcp_listener.accept().await {
-            info!("Got connection from: {}", a);
+            info!("[+] Got connection from: {}", a);
             http_handler.handle_connection(&s).await;
         }
 
