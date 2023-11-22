@@ -118,4 +118,8 @@ impl OSCQuery {
         info!("[+] Got service info: {}", s_info.get_hostname());
         s_info
     }
+
+    pub fn attempt_force_vrc_response_detect(&self) {
+        get_target_service(self.mdns_handler.as_ref().unwrap(), "VRChat-Client-".to_string(), OSC_JSON_SERVICE);
+    }
 }
