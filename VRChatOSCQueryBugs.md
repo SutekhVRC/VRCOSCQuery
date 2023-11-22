@@ -10,4 +10,4 @@ The VRChat client does not read/parse the OSC IP in an OSC app's TCP/JSON servic
 
 ## OSC/JSON Service Bind Address
 
-The VRChat application will not listen to the mDNS response with the TCP/JSON's A record. Instead it will request the default LAN address.
+The VRChat application will not listen to the mDNS response with the TCP/JSON's A record. Instead it will send the HTTP request the default LAN address.
