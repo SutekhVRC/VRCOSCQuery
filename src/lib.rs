@@ -111,10 +111,10 @@ impl OSCQuery {
         info!("[+] Unregistering mDNS service for {}", self.app_name);
     }
 
-    pub fn mdns_search(&mut self, service_prefix: String) -> ServiceInfo {
+    pub fn mdns_search(&mut self, service_prefix: String, service_type: &'static str) -> ServiceInfo {
 
         info!("[+] Searching for {}", service_prefix);
-        let s_info = get_target_service(self.mdns_handler.as_ref().unwrap(), service_prefix, OSC_JSON_SERVICE);
+        let s_info = get_target_service(self.mdns_handler.as_ref().unwrap(), service_prefix, service_type);
         info!("[+] Got service info: {}", s_info.get_hostname());
         s_info
     }

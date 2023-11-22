@@ -12,7 +12,7 @@ fn instantiate_10_seconds() {
     instance.start_http_json();
     instance.register_mdns_service();
 
-    let _resolved_vrc_service = instance.mdns_search("VRChat-Client-".to_string());
+    let _resolved_vrc_service = instance.mdns_search("VRChat-Client-".to_string(), OSC_JSON_SERVICE);
     std::thread::sleep(Duration::from_secs(10));
 
     info!("[*] Stopping JSON service..");
