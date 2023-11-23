@@ -38,10 +38,6 @@ pub struct OSCQuery {
 
 impl OSCQuery {
     pub fn new(app_name: String, http_net: SocketAddrV4, osc_net: SocketAddrV4) -> Self {
-
-        
-        let mut mdns_handler = Some(OQMDNSHandler::new(app_name.clone(), http_net));
-        mdns_handler.as_mut().unwrap().start_daemon();
         
         OSCQuery {
             app_name,
@@ -50,7 +46,7 @@ impl OSCQuery {
             async_runtime: None,
             thread_tx: None,
             thread_rx: None,
-            mdns_handler,
+            mdns_handler: None,
             vrchat_parameters: None,
         }
     }
@@ -179,5 +175,15 @@ impl OSCQuery {
                 i += 1;
             }
         });
+    }
+
+    pub fn initialize_mdns(&mut self) {
+        self.mdns_handler = Some(OQMDNSHandler::new(self.app_name.clone(), self.http_net));
+        self.mdns_handler.as_mut().unwrap().start_daemon();
+    }
+
+    pub fn shutdown_mdns(&mut self) {
+        let mut h = self.mdns_handler.take().unwrap();
+        h.shutdown_daemon();
     }
 }

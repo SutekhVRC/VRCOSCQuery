@@ -60,7 +60,16 @@ pub struct OSCQueryNode {
 
 impl OSCQueryNode {
     pub fn get_avatar_parameters(&self) -> Option<Vec<String>> {
+
+        let root_node = self.clone();
+
+        let avatar_params = root_node.contents.as_ref().unwrap().get("avatar").unwrap();
+
+        
+
         None
     }
+
+    
 
 }

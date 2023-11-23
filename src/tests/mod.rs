@@ -32,6 +32,7 @@ fn test_node_parse() {
 
     let mut instance = OSCQuery::new("VibeCheck".to_string(), http_addr, osc_addr);
     instance.start_http_json();
+    instance.initialize_mdns();
     instance.register_mdns_service();
 
     instance.populate_vrc_params("VRChat-Client-".to_owned(), OSC_JSON_SERVICE);
@@ -43,6 +44,7 @@ fn test_node_parse() {
 
     info!("[*] Stopping mDNS listener..");
     instance.unregister_mdns_service();
+    instance.shutdown_mdns();
     info!("[+] mDNS listener shutdown.");
 }
 
