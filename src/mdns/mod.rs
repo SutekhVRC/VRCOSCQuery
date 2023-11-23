@@ -6,7 +6,7 @@ pub const OSC_JSON_SERVICE: &'static str = "_oscjson._tcp.local.";
 pub const OSC_SERVICE: &'static str = "_osc._udp.local.";
 
 pub struct OQMDNSHandler {
-    service_daemon: ServiceDaemon,
+    service_daemon: Option<ServiceDaemon>,
     service_info: ServiceInfo,
 }
 
@@ -26,23 +26,29 @@ impl OQMDNSHandler {
             &mdns_properties[..],
         ).unwrap();
 
-        let service_daemon = ServiceDaemon::new().unwrap();
-        service_daemon.disable_interface(IfKind::IPv6).unwrap();
-
         OQMDNSHandler {
-            service_daemon,
+            service_daemon: None,
             service_info,
         }
+    }
+    
+    pub fn start_daemon(&mut self) {
+        self.service_daemon = Some(ServiceDaemon::new().unwrap());
+        self.service_daemon.as_ref().unwrap().disable_interface(IfKind::IPv6).unwrap();
+    }
+
+    pub fn shutdown_daemon(&mut self) {
+        self.service_daemon.take().unwrap().shutdown().unwrap();
     }
 
     pub fn register(&self) {
 
-        self.service_daemon.register(self.service_info.clone()).unwrap();
+        self.service_daemon.as_ref().unwrap().register(self.service_info.clone()).unwrap();
         info!("[+] Registered mDNS service.");
 
     }
     pub fn unregister(&self) {
-        self.service_daemon.unregister(&self.service_info.get_type()).unwrap();
+        self.service_daemon.as_ref().unwrap().unregister(&self.service_info.get_type()).unwrap();
         info!("[+] Unregistered {}", self.service_info.get_type());
     }
 
@@ -50,7 +56,7 @@ impl OQMDNSHandler {
 
 pub fn get_target_service(mdns_handler: &OQMDNSHandler, match_prefix: String, s_type: &'static str) -> ServiceInfo {
 
-    let service_receiver = mdns_handler.service_daemon.browse(s_type).unwrap();
+    let service_receiver = mdns_handler.service_daemon.as_ref().unwrap().browse(s_type).unwrap();
     info!("[*] mDNS browsing..");
 
     loop {

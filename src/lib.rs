@@ -37,8 +37,10 @@ pub struct OSCQuery {
 impl OSCQuery {
     pub fn new(app_name: String, http_net: SocketAddrV4, osc_net: SocketAddrV4) -> Self {
 
-        let mdns_handler = Some(OQMDNSHandler::new(app_name.clone(), http_net));
-        
+        /*
+        let mut mdns_handler = Some(OQMDNSHandler::new(app_name.clone(), http_net));
+        mdns_handler.as_mut().unwrap().start_daemon();
+        */
         OSCQuery {
             app_name,
             http_net,
@@ -46,7 +48,7 @@ impl OSCQuery {
             async_runtime: None,
             thread_tx: None,
             thread_rx: None,
-            mdns_handler,
+            mdns_handler: None,
         }
     }
 
@@ -119,14 +121,16 @@ impl OSCQuery {
         s_info
     }
 
-    pub fn attempt_force_vrc_response_detect(&self) {
+    pub fn attempt_force_vrc_response_detect(&self, attempts: u64) {
         let mut i = 0;
         loop {
-            let mdns_force = OQMDNSHandler::new(self.app_name.clone(), self.http_net);
+            let mut mdns_force = OQMDNSHandler::new(self.app_name.clone(), self.http_net);
+            mdns_force.start_daemon();
             mdns_force.register();
             get_target_service(&mdns_force, "VRChat-Client-".to_string(), OSC_JSON_SERVICE);
             mdns_force.unregister();
-            if i == 5 {
+            mdns_force.shutdown_daemon();
+            if i == attempts {
                 return;
             }
             i += 1;

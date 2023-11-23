@@ -31,12 +31,11 @@ fn test_vrchat_force_discover() {
 
     let mut instance = OSCQuery::new("VibeCheck".to_string(), http_addr, osc_addr);
     instance.start_http_json();
-    instance.register_mdns_service();
 
     loop {
         //instance.register_mdns_service();
         //instance.unregister_mdns_service();
-        instance.attempt_force_vrc_response_detect();
+        instance.attempt_force_vrc_response_detect(10);
         std::thread::sleep(Duration::from_secs(10));
     }
 }
