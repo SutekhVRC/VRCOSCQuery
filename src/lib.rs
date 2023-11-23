@@ -1,7 +1,8 @@
-use std::net::SocketAddrV4;
+use std::net::{SocketAddrV4, IpAddr};
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
+use http::json_models::OSCQueryNode;
 #[cfg(not(test))]
 use log::info;
 
@@ -32,15 +33,16 @@ pub struct OSCQuery {
     thread_tx: Option<watch::Sender<AtomicBool>>,
     thread_rx: Option<watch::Receiver<AtomicBool>>,
     mdns_handler: Option<OQMDNSHandler>,
+    vrchat_parameters: Option<OSCQueryNode>,
 }
 
 impl OSCQuery {
     pub fn new(app_name: String, http_net: SocketAddrV4, osc_net: SocketAddrV4) -> Self {
 
-        /*
+        
         let mut mdns_handler = Some(OQMDNSHandler::new(app_name.clone(), http_net));
         mdns_handler.as_mut().unwrap().start_daemon();
-        */
+        
         OSCQuery {
             app_name,
             http_net,
@@ -48,7 +50,8 @@ impl OSCQuery {
             async_runtime: None,
             thread_tx: None,
             thread_rx: None,
-            mdns_handler: None,
+            mdns_handler,
+            vrchat_parameters: None,
         }
     }
 
@@ -121,19 +124,60 @@ impl OSCQuery {
         s_info
     }
 
-    pub fn attempt_force_vrc_response_detect(&self, attempts: u64) {
-        let mut i = 0;
-        loop {
-            let mut mdns_force = OQMDNSHandler::new(self.app_name.clone(), self.http_net);
-            mdns_force.start_daemon();
-            mdns_force.register();
-            get_target_service(&mdns_force, "VRChat-Client-".to_string(), OSC_JSON_SERVICE);
-            mdns_force.unregister();
-            mdns_force.shutdown_daemon();
-            if i == attempts {
+    pub fn populate_vrc_params(&mut self, service_prefix: String, service_type: &'static str) {
+
+        info!("[*] Populating parameters from TCP/JSON service..");
+
+        let s_info = self.mdns_search(service_prefix, service_type);
+        let host = s_info.get_addresses().iter().collect::<Vec<&IpAddr>>().first().take().unwrap().to_string();
+        let index_enpdoint = format!("http://{}:{}/", host, s_info.get_port());
+
+        info!("[*] Requesting index endpoint: {}", index_enpdoint);
+
+        let http_res = match reqwest::blocking::get(index_enpdoint) {
+            Ok(res) => res,
+            Err(_e) => return,
+        };
+
+        let json_res = match http_res.text() {
+            Ok(r) => r,
+            Err(_e) => return,
+        };
+
+        let node_tree = match serde_json::from_str::<OSCQueryNode>(&json_res) {
+            Ok(jr) => jr,
+            Err(_e) => {
+                info!("[-] Failed to deserialize: {}\n{:?}", _e, json_res);
                 return;
+            },
+        };
+
+        //let json_res = node_tree.as_object().unwrap();
+
+        //info!("[*] JSON Deserialization:\n{:?}", node_tree);
+
+        info!("[+] Successfully parsed index node tree.");
+
+        self.vrchat_parameters = Some(node_tree);
+    }
+
+    pub fn attempt_force_vrc_response_detect(&self, attempts: u64) {
+        let app_name = self.app_name.clone();
+        let http_net = self.http_net.clone();
+        std::thread::spawn(move || {
+            let mut i = 0;
+            loop {
+                let mut mdns_force = OQMDNSHandler::new(app_name.clone(), http_net);
+                mdns_force.start_daemon();
+                mdns_force.register();
+                get_target_service(&mdns_force, "VRChat-Client-".to_string(), OSC_JSON_SERVICE);
+                mdns_force.unregister();
+                mdns_force.shutdown_daemon();
+                if i == attempts {
+                    return;
+                }
+                i += 1;
             }
-            i += 1;
-        }
+        });
     }
 }

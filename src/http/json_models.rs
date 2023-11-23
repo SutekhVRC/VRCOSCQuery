@@ -36,9 +36,13 @@ pub struct HostInfo<'hostinfo> {
 pub enum OSCQueryValue {
     BOOLEAN(bool),
     FLOAT(f32),
+    STRING(String),
+    INT(i32),
+    // Havent seen any non-empty response from VRChat for "VALUE":[{}]
+    OBJECT(HashMap<String, u8>)
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct OSCQueryNode {
     #[serde(skip_serializing_if = "Option::is_none", rename = "DESCRIPTION")]
     description: Option<String>,
@@ -49,7 +53,14 @@ pub struct OSCQueryNode {
     #[serde(skip_serializing_if = "Option::is_none", rename = "TYPE")]
     _type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "VALUE")]
-    value: Option<Vec<OSCQueryNode>>,
+    value: Option<Vec<OSCQueryValue>>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "CONTENTS")]
     contents: Option<HashMap<String, Self>>,
+}
+
+impl OSCQueryNode {
+    pub fn get_avatar_parameters(&self) -> Option<Vec<String>> {
+        None
+    }
+
 }
