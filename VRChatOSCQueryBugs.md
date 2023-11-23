@@ -1,4 +1,6 @@
-# VRChat OSCQuery implementation bugs
+# VRChat Client's OSCQuery implementation bugs
+
+These are bugs I find with the VRChat client's OSCQuery implementation.
 
 ## Menu race condition
 
