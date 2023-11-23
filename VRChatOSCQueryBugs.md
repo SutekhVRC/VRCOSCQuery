@@ -33,4 +33,4 @@ These are bugs I find with the VRChat client's OSCQuery implementation.
 
 **Workaround:**
 - Certain mDNS implementations do not expect this behavior so you may need to induce separation of answers into additional answers.
-- Craft your own mDNS responses
+- Craft your own mDNS responses that always separate your PTR answer into the Answers section and the rest of the records into the Additional Answers.
