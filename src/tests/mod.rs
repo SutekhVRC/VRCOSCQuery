@@ -25,6 +25,28 @@ fn instantiate_10_seconds() {
 }
 
 #[test]
+fn test_node_parse() {
+
+    let osc_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 9069);
+    let http_addr = SocketAddrV4::new(Ipv4Addr::new(172, 19, 19, 244), 8080);
+
+    let mut instance = OSCQuery::new("VibeCheck".to_string(), http_addr, osc_addr);
+    instance.start_http_json();
+    instance.register_mdns_service();
+
+    instance.populate_vrc_params("VRChat-Client-".to_owned(), OSC_JSON_SERVICE);
+    std::thread::sleep(Duration::from_secs(10));
+
+    info!("[*] Stopping JSON service..");
+    instance.stop_http_json();
+    info!("[+] JSON service shutdown.");
+
+    info!("[*] Stopping mDNS listener..");
+    instance.unregister_mdns_service();
+    info!("[+] mDNS listener shutdown.");
+}
+
+#[test]
 fn test_vrchat_force_discover() {
     let osc_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 9069);
     let http_addr = SocketAddrV4::new(Ipv4Addr::new(172, 19, 19, 244), 8080);
