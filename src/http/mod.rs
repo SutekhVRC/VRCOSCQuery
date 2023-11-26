@@ -10,7 +10,7 @@ pub mod json_models;
 
 const HTTP_RESPONSE_BASE: &'static str = "HTTP/1.1 200\r\nContent-Type: application/json\r\n";
 
-const HTTP_INDEX: &[u8] = include_bytes!("../../index.json");
+const HTTP_INDEX: &'static str = "{\"DESCRIPTION\": \"root node\",\"FULL_PATH\": \"/\",\"ACCESS\": 0,\"CONTENTS\": {\"avatar\": {\"FULL_PATH\": \"/avatar\",\"ACCESS\": 0,\"CONTENTS\": {\"change\": {\"DESCRIPTION\": \"Avatar ID, updated whenever the user switches into a valid avatar.\",\"FULL_PATH\": \"/avatar/change\",\"ACCESS\": 1,\"TYPE\": \"s\",\"VALUE\": [\"avtr_id_lol\"]}}}}}";
 
 pub struct OQHTTPHandler <'hostinfo>{
         thread_rx: Receiver<AtomicBool>,
@@ -27,7 +27,7 @@ impl <'hostinfo> OQHTTPHandler<'hostinfo> {
     async fn http_route(&self, buffer: Vec<u8>, tcp_stream: &TcpStream) {
 
         if buffer.starts_with("GET / HTTP/".as_bytes()) {
-            let http_index = String::from_utf8_lossy(HTTP_INDEX);
+            let http_index = String::from_utf8_lossy(HTTP_INDEX.as_bytes());
             let http_res = format!("{}Content-Length: {}\r\n\r\n{}", HTTP_RESPONSE_BASE, HTTP_INDEX.len(), http_index);
             tcp_stream.try_write(http_res.as_bytes()).unwrap();
         } else if buffer.starts_with("GET /?HOST_INFO HTTP/".as_bytes()) {
