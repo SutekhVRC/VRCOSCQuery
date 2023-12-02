@@ -1,4 +1,3 @@
-
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -14,7 +13,7 @@ pub struct HostInfoExtensions {
     #[serde(rename = "TYPE")]
     pub _type: bool,
     #[serde(rename = "VALUE")]
-    pub value: bool
+    pub value: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -39,7 +38,7 @@ pub enum OSCQueryValue {
     STRING(String),
     INT(i32),
     // Havent seen any non-empty response from VRChat for "VALUE":[{}]
-    OBJECT(HashMap<String, u8>)
+    OBJECT(HashMap<String, u8>),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -60,16 +59,10 @@ pub struct OSCQueryNode {
 
 impl OSCQueryNode {
     pub fn get_avatar_parameters(&self) -> Option<Vec<String>> {
-
         let root_node = self.clone();
 
         let avatar_params = root_node.contents.as_ref().unwrap().get("avatar").unwrap();
 
-        
-
         None
     }
-
-    
-
 }

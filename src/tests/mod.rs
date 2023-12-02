@@ -4,7 +4,6 @@ use super::*;
 
 #[test]
 fn instantiate_10_seconds() {
-
     let osc_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 9069);
     let http_addr = SocketAddrV4::new(Ipv4Addr::new(172, 19, 19, 244), 8080);
 
@@ -12,7 +11,8 @@ fn instantiate_10_seconds() {
     instance.start_http_json();
     instance.register_mdns_service();
 
-    let _resolved_vrc_service = instance.mdns_search("VRChat-Client-".to_string(), OSC_JSON_SERVICE);
+    let _resolved_vrc_service =
+        instance.mdns_search("VRChat-Client-".to_string(), OSC_JSON_SERVICE);
     std::thread::sleep(Duration::from_secs(10));
 
     info!("[*] Stopping JSON service..");
@@ -26,7 +26,6 @@ fn instantiate_10_seconds() {
 
 #[test]
 fn test_node_parse() {
-
     let osc_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 9069);
     let http_addr = SocketAddrV4::new(Ipv4Addr::new(172, 19, 19, 244), 8080);
 
@@ -66,11 +65,13 @@ fn test_vrchat_force_discover() {
 
 #[test]
 fn detect_vrchat() {
-    
     let osc_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 9069);
     let http_addr = SocketAddrV4::new(Ipv4Addr::new(172, 19, 19, 244), 8080);
 
     let mut instance = OSCQuery::new("VibeCheck".to_string(), http_addr, osc_addr);
     let resolved_vrc_service = instance.mdns_search("VRChat-Client-".to_string(), OSC_JSON_SERVICE);
-    info!("[+] Got VRChat OSC JSON: {}", resolved_vrc_service.get_hostname());
+    info!(
+        "[+] Got VRChat OSC JSON: {}",
+        resolved_vrc_service.get_hostname()
+    );
 }

@@ -1,6 +1,6 @@
-use std::net::SocketAddrV4;
 use super::info;
-use mdns_sd::{ServiceInfo, ServiceDaemon, ServiceEvent, IfKind};
+use mdns_sd::{IfKind, ServiceDaemon, ServiceEvent, ServiceInfo};
+use std::net::SocketAddrV4;
 
 pub const OSC_JSON_SERVICE: &'static str = "_oscjson._tcp.local.";
 pub const OSC_SERVICE: &'static str = "_osc._udp.local.";
@@ -12,7 +12,6 @@ pub struct OQMDNSHandler {
 
 impl OQMDNSHandler {
     pub fn new(app_name: String, http_addr: SocketAddrV4) -> Self {
-
         let mdns_properties = vec![("mjau", "grr")];
         let ip_addr = *http_addr.ip();
         let port = http_addr.port();
@@ -24,17 +23,22 @@ impl OQMDNSHandler {
             ip_addr.to_string(),
             port,
             &mdns_properties[..],
-        ).unwrap();
+        )
+        .unwrap();
 
         OQMDNSHandler {
             service_daemon: None,
             service_info,
         }
     }
-    
+
     pub fn start_daemon(&mut self) {
         self.service_daemon = Some(ServiceDaemon::new().unwrap());
-        self.service_daemon.as_ref().unwrap().disable_interface(IfKind::IPv6).unwrap();
+        self.service_daemon
+            .as_ref()
+            .unwrap()
+            .disable_interface(IfKind::IPv6)
+            .unwrap();
     }
 
     pub fn shutdown_daemon(&mut self) {
@@ -42,21 +46,34 @@ impl OQMDNSHandler {
     }
 
     pub fn register(&self) {
-
-        self.service_daemon.as_ref().unwrap().register(self.service_info.clone()).unwrap();
+        self.service_daemon
+            .as_ref()
+            .unwrap()
+            .register(self.service_info.clone())
+            .unwrap();
         info!("[+] Registered mDNS service.");
-
     }
     pub fn unregister(&self) {
-        self.service_daemon.as_ref().unwrap().unregister(&self.service_info.get_type()).unwrap();
+        self.service_daemon
+            .as_ref()
+            .unwrap()
+            .unregister(&self.service_info.get_type())
+            .unwrap();
         info!("[+] Unregistered {}", self.service_info.get_type());
     }
-
 }
 
-pub fn get_target_service(mdns_handler: &OQMDNSHandler, match_prefix: String, s_type: &'static str) -> ServiceInfo {
-
-    let service_receiver = mdns_handler.service_daemon.as_ref().unwrap().browse(s_type).unwrap();
+pub fn get_target_service(
+    mdns_handler: &OQMDNSHandler,
+    match_prefix: String,
+    s_type: &'static str,
+) -> ServiceInfo {
+    let service_receiver = mdns_handler
+        .service_daemon
+        .as_ref()
+        .unwrap()
+        .browse(s_type)
+        .unwrap();
     info!("[*] mDNS browsing..");
 
     loop {
@@ -64,12 +81,10 @@ pub fn get_target_service(mdns_handler: &OQMDNSHandler, match_prefix: String, s_
         match event {
             ServiceEvent::ServiceResolved(service_info) => {
                 if service_info.get_fullname().starts_with(&match_prefix) {
-
                     return service_info;
                 }
-            },
+            }
             _e => info!("[?] NOT RESOLVED {:?}", _e),
         }
     }
-
 }

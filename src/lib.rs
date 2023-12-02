@@ -1,4 +1,4 @@
-use std::net::{SocketAddrV4, IpAddr};
+use std::net::{IpAddr, SocketAddrV4};
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
@@ -14,16 +14,15 @@ use mdns_sd::ServiceInfo;
 use tokio::runtime::Runtime;
 use tokio::sync::watch;
 
-use crate::http::OQHTTPHandler;
 use crate::http::json_models::{HostInfo, HostInfoExtensions};
-use crate::mdns::{OQMDNSHandler, get_target_service, OSC_JSON_SERVICE};
+use crate::http::OQHTTPHandler;
+use crate::mdns::{get_target_service, OQMDNSHandler, OSC_JSON_SERVICE};
 
-pub mod mdns;
 pub mod http;
+pub mod mdns;
 
 #[cfg(test)]
 mod tests;
-
 
 pub struct OSCQuery {
     app_name: String,
@@ -38,7 +37,6 @@ pub struct OSCQuery {
 
 impl OSCQuery {
     pub fn new(app_name: String, http_net: SocketAddrV4, osc_net: SocketAddrV4) -> Self {
-        
         OSCQuery {
             app_name,
             http_net,
@@ -52,7 +50,6 @@ impl OSCQuery {
     }
 
     pub fn start_http_json(&mut self) {
-
         let (thread_tx, thread_rx) = watch::channel::<AtomicBool>(AtomicBool::new(false));
         self.thread_tx = Some(thread_tx);
         self.thread_rx = Some(thread_rx);
@@ -64,20 +61,20 @@ impl OSCQuery {
     }
 
     pub fn stop_http_json(&mut self) {
-
         let tx = self.thread_tx.take().unwrap();
         tx.send(AtomicBool::new(false)).unwrap();
-        
+
         info!("[+] Sent shutdown signal to OSCQuery threads..");
 
         info!("[+] Shutting down async runtime..");
-        self.async_runtime.take().unwrap().shutdown_timeout(Duration::from_secs(10));
+        self.async_runtime
+            .take()
+            .unwrap()
+            .shutdown_timeout(Duration::from_secs(10));
         info!("[+] Async runtime successfully shutdown.");
-
     }
 
     fn start_http(&mut self) {
-
         info!("[+] Staring HTTP service.. {}", self.http_net);
 
         let extensions = HostInfoExtensions {
@@ -96,7 +93,8 @@ impl OSCQuery {
             osc_transport: "UDP",
         };
 
-        let http_service = OQHTTPHandler::new(self.http_net, host_info, self.thread_rx.clone().unwrap());
+        let http_service =
+            OQHTTPHandler::new(self.http_net, host_info, self.thread_rx.clone().unwrap());
         let http_thread = crate::http::start(http_service);
         self.async_runtime.as_mut().unwrap().spawn(http_thread);
 
@@ -112,20 +110,33 @@ impl OSCQuery {
         info!("[+] Unregistering mDNS service for {}", self.app_name);
     }
 
-    pub fn mdns_search(&mut self, service_prefix: String, service_type: &'static str) -> ServiceInfo {
-
+    pub fn mdns_search(
+        &mut self,
+        service_prefix: String,
+        service_type: &'static str,
+    ) -> ServiceInfo {
         info!("[+] Searching for {}", service_prefix);
-        let s_info = get_target_service(self.mdns_handler.as_ref().unwrap(), service_prefix, service_type);
+        let s_info = get_target_service(
+            self.mdns_handler.as_ref().unwrap(),
+            service_prefix,
+            service_type,
+        );
         info!("[+] Got service info: {}", s_info.get_hostname());
         s_info
     }
 
     pub fn populate_vrc_params(&mut self, service_prefix: String, service_type: &'static str) {
-
         info!("[*] Populating parameters from TCP/JSON service..");
 
         let s_info = self.mdns_search(service_prefix, service_type);
-        let host = s_info.get_addresses().iter().collect::<Vec<&IpAddr>>().first().take().unwrap().to_string();
+        let host = s_info
+            .get_addresses()
+            .iter()
+            .collect::<Vec<&IpAddr>>()
+            .first()
+            .take()
+            .unwrap()
+            .to_string();
         let index_enpdoint = format!("http://{}:{}/", host, s_info.get_port());
 
         info!("[*] Requesting index endpoint: {}", index_enpdoint);
@@ -145,7 +156,7 @@ impl OSCQuery {
             Err(_e) => {
                 info!("[-] Failed to deserialize: {}\n{:?}", _e, json_res);
                 return;
-            },
+            }
         };
 
         //let json_res = node_tree.as_object().unwrap();
