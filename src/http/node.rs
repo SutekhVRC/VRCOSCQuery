@@ -1,6 +1,39 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+#[derive(Serialize, Deserialize)]
+pub struct OSCQueryNode {
+    #[serde(rename = "FULL_PATH")]
+    full_path: String,
+    #[serde(rename = "ACCESS")]
+    access: i8,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "DESCRIPTION")]
+    description: Option<String>,
+    #[serde(flatten)]
+    data: NodeData,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum NodeData {
+    Internal(Contents),
+    Leaf(TypedValue),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Contents {
+    #[serde(rename = "CONTENTS")]
+    contents: HashMap<String, OSCQueryNode>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TypedValue {
+    #[serde(rename = "TYPE")]
+    _type: String,
+    #[serde(rename = "VALUE")]
+    value: Option<Vec<OSCQueryValue>>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum OSCQueryValue {
@@ -10,22 +43,6 @@ pub enum OSCQueryValue {
     INT(i32),
     // Havent seen any non-empty response from VRChat for "VALUE":[{}]
     OBJECT(HashMap<String, u8>),
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct OSCQueryNode {
-    #[serde(skip_serializing_if = "Option::is_none", rename = "DESCRIPTION")]
-    description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", rename = "FULL_PATH")]
-    full_path: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", rename = "ACCESS")]
-    access: Option<i8>,
-    #[serde(skip_serializing_if = "Option::is_none", rename = "TYPE")]
-    _type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", rename = "VALUE")]
-    value: Option<Vec<OSCQueryValue>>,
-    #[serde(skip_serializing_if = "Option::is_none", rename = "CONTENTS")]
-    contents: Option<HashMap<String, Self>>,
 }
 
 impl std::fmt::Debug for OSCQueryNode {
