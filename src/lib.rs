@@ -1,22 +1,19 @@
+use crate::http::json_models::{HostInfo, HostInfoExtensions};
+use crate::http::OQHTTPHandler;
+use crate::mdns::{get_target_service, OQMDNSHandler, OSC_JSON_SERVICE};
+use http::node::OSCQueryNode;
+use mdns_sd::ServiceInfo;
 use std::net::{IpAddr, SocketAddrV4};
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
+use tokio::runtime::Runtime;
+use tokio::sync::watch;
 
-use http::json_models::OSCQueryNode;
 #[cfg(not(test))]
 use log::info;
 
 #[cfg(test)]
 use std::println as info;
-
-use mdns_sd::ServiceInfo;
-
-use tokio::runtime::Runtime;
-use tokio::sync::watch;
-
-use crate::http::json_models::{HostInfo, HostInfoExtensions};
-use crate::http::OQHTTPHandler;
-use crate::mdns::{get_target_service, OQMDNSHandler, OSC_JSON_SERVICE};
 
 pub mod http;
 pub mod mdns;

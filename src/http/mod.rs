@@ -1,19 +1,17 @@
 use super::info;
-
+use crate::http::json_models::HostInfo;
 use std::{
     io,
     net::SocketAddrV4,
     sync::atomic::{AtomicBool, Ordering},
 };
-
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::watch::Receiver,
 };
 
-use crate::http::json_models::HostInfo;
-
 pub mod json_models;
+pub mod node;
 
 const HTTP_RESPONSE_BASE: &'static str = "HTTP/1.1 200\r\nContent-Type: application/json\r\n";
 
