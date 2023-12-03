@@ -12,7 +12,7 @@ pub enum OSCQueryValue {
     OBJECT(HashMap<String, u8>),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct OSCQueryNode {
     #[serde(skip_serializing_if = "Option::is_none", rename = "DESCRIPTION")]
     description: Option<String>,
@@ -26,6 +26,13 @@ pub struct OSCQueryNode {
     value: Option<Vec<OSCQueryValue>>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "CONTENTS")]
     contents: Option<HashMap<String, Self>>,
+}
+
+impl std::fmt::Debug for OSCQueryNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let pretty_string = serde_json::to_string_pretty(self).map_err(|_| std::fmt::Error)?;
+        write!(f, "{}", pretty_string)
+    }
 }
 
 impl OSCQueryNode {
