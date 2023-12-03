@@ -71,9 +71,9 @@ impl<'hostinfo> OQHTTPHandler<'hostinfo> {
         loop {
             match tcp_stream.try_read(&mut buffer) {
                 Ok(0) => break,
-                Ok(_b) => {
+                Ok(b) => {
                     full_buffer.extend_from_slice(&buffer);
-                    if _b < 1024 {
+                    if b < 1024 {
                         break;
                     };
                     buffer.fill_with(|| 0x0);
@@ -84,7 +84,6 @@ impl<'hostinfo> OQHTTPHandler<'hostinfo> {
         }
 
         self.http_route(full_buffer, tcp_stream).await;
-        //println!("-=== Buffer ===-\n{}", String::from_utf8_lossy(&full_buffer).to_owned());
     }
 }
 

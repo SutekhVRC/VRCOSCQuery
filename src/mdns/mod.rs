@@ -84,7 +84,7 @@ pub fn get_target_service(
                     return service_info;
                 }
             }
-            _e => info!("[?] NOT RESOLVED {:?}", _e),
+            e => info!("[?] NOT RESOLVED {:?}", e),
         }
     }
 }
