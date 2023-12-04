@@ -1,19 +1,17 @@
 use super::info;
-
+use crate::http::json_models::HostInfo;
 use std::{
     io,
     net::SocketAddrV4,
     sync::atomic::{AtomicBool, Ordering},
 };
-
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::watch::Receiver,
 };
 
-use crate::http::json_models::HostInfo;
-
 pub mod json_models;
+pub mod node;
 
 const HTTP_RESPONSE_BASE: &'static str = "HTTP/1.1 200\r\nContent-Type: application/json\r\n";
 
@@ -71,9 +69,9 @@ impl<'hostinfo> OQHTTPHandler<'hostinfo> {
         loop {
             match tcp_stream.try_read(&mut buffer) {
                 Ok(0) => break,
-                Ok(_b) => {
+                Ok(b) => {
                     full_buffer.extend_from_slice(&buffer);
-                    if _b < 1024 {
+                    if b < 1024 {
                         break;
                     };
                     buffer.fill_with(|| 0x0);
@@ -84,7 +82,6 @@ impl<'hostinfo> OQHTTPHandler<'hostinfo> {
         }
 
         self.http_route(full_buffer, tcp_stream).await;
-        //println!("-=== Buffer ===-\n{}", String::from_utf8_lossy(&full_buffer).to_owned());
     }
 }
 

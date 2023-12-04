@@ -1,22 +1,19 @@
+use crate::http::json_models::{HostInfo, HostInfoExtensions};
+use crate::http::OQHTTPHandler;
+use crate::mdns::{get_target_service, OQMDNSHandler, OSC_JSON_SERVICE};
+use http::node::OSCQueryNode;
+use mdns_sd::ServiceInfo;
 use std::net::{IpAddr, SocketAddrV4};
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
+use tokio::runtime::Runtime;
+use tokio::sync::watch;
 
-use http::json_models::OSCQueryNode;
 #[cfg(not(test))]
 use log::info;
 
 #[cfg(test)]
 use std::println as info;
-
-use mdns_sd::ServiceInfo;
-
-use tokio::runtime::Runtime;
-use tokio::sync::watch;
-
-use crate::http::json_models::{HostInfo, HostInfoExtensions};
-use crate::http::OQHTTPHandler;
-use crate::mdns::{get_target_service, OQMDNSHandler, OSC_JSON_SERVICE};
 
 pub mod http;
 pub mod mdns;
@@ -153,15 +150,11 @@ impl OSCQuery {
 
         let node_tree = match serde_json::from_str::<OSCQueryNode>(&json_res) {
             Ok(jr) => jr,
-            Err(_e) => {
-                info!("[-] Failed to deserialize: {}\n{:?}", _e, json_res);
+            Err(e) => {
+                info!("[-] Failed to deserialize: {}\n{:?}", e, json_res);
                 return;
             }
         };
-
-        //let json_res = node_tree.as_object().unwrap();
-
-        //info!("[*] JSON Deserialization:\n{:?}", node_tree);
 
         info!("[+] Successfully parsed index node tree.");
 
@@ -172,18 +165,13 @@ impl OSCQuery {
         let app_name = self.app_name.clone();
         let http_net = self.http_net.clone();
         std::thread::spawn(move || {
-            let mut i = 0;
-            loop {
+            for _ in 0..attempts {
                 let mut mdns_force = OQMDNSHandler::new(app_name.clone(), http_net);
                 mdns_force.start_daemon();
                 mdns_force.register();
                 get_target_service(&mdns_force, "VRChat-Client-".to_string(), OSC_JSON_SERVICE);
                 mdns_force.unregister();
                 mdns_force.shutdown_daemon();
-                if i == attempts {
-                    return;
-                }
-                i += 1;
             }
         });
     }
