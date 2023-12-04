@@ -1,0 +1,168 @@
+{
+  "DESCRIPTION": "root node",
+  "FULL_PATH": "/",
+  "ACCESS": 0,
+  "CONTENTS": {
+    "input": {
+      "FULL_PATH": "/input",
+      "ACCESS": 0,
+      "CONTENTS": {
+        "MoveForward": {
+          "DESCRIPTION": "Moves you forward while the input equals 1..",
+          "FULL_PATH": "/input/MoveForward",
+          "ACCESS": 2,
+          "TYPE": "T",
+          "VALUE": [false]
+        },
+        "MoveBackward": {
+          "DESCRIPTION": "Moves you backward while the input equals 1..",
+          "FULL_PATH": "/input/MoveBackward",
+          "ACCESS": 2,
+          "TYPE": "T",
+          "VALUE": [false]
+        }
+      }
+    },
+    "chatbox": {
+      "FULL_PATH": "/chatbox",
+      "ACCESS": 0,
+      "CONTENTS": {
+        "input": { "FULL_PATH": "/chatbox/input", "ACCESS": 2, "TYPE": "sTT" },
+        "typing": { "FULL_PATH": "/chatbox/typing", "ACCESS": 2, "TYPE": "s" }
+      }
+    },
+    "avatar": {
+      "FULL_PATH": "/avatar",
+      "ACCESS": 0,
+      "CONTENTS": {
+        "change": {
+          "DESCRIPTION": "Avatar ID, updated whenever the user switches into a valid avatar.",
+          "FULL_PATH": "/avatar/change",
+          "ACCESS": 1,
+          "TYPE": "s",
+          "VALUE": ["avtr_guid-guid-guid-guid-guid"]
+        },
+        "parameters": {
+          "FULL_PATH": "/avatar/parameters",
+          "ACCESS": 0,
+          "CONTENTS": {
+            "vibecheck": {
+              "FULL_PATH": "/avatar/parameters/vibecheck",
+              "ACCESS": 0,
+              "CONTENTS": {
+                "simple": {
+                  "FULL_PATH": "/avatar/parameters/vibecheck/simple",
+                  "ACCESS": 0,
+                  "CONTENTS": {
+                    "out": {
+                      "FULL_PATH": "/avatar/parameters/vibecheck/simple/out",
+                      "ACCESS": 3,
+                      "TYPE": "f",
+                      "VALUE": [0.0]
+                    }
+                  }
+                }
+              }
+            },
+            "OGB": {
+              "FULL_PATH": "/avatar/parameters/OGB",
+              "ACCESS": 0,
+              "CONTENTS": {
+                "Orf": {
+                  "FULL_PATH": "/avatar/parameters/OGB/Orf",
+                  "ACCESS": 0,
+                  "CONTENTS": {
+                    "Steppies_Right": {
+                      "FULL_PATH": "/avatar/parameters/OGB/Orf/Steppies_Right",
+                      "ACCESS": 0,
+                      "CONTENTS": {
+                        "PenOthersNewTip": {
+                          "FULL_PATH": "/avatar/parameters/OGB/Orf/Steppies_Right/PenOthersNewTip",
+                          "ACCESS": 3,
+                          "TYPE": "f",
+                          "VALUE": [0.0]
+                        },
+                        "PenOthersNewRoot": {
+                          "FULL_PATH": "/avatar/parameters/OGB/Orf/Steppies_Right/PenOthersNewRoot",
+                          "ACCESS": 3,
+                          "TYPE": "f",
+                          "VALUE": [0.0]
+                        },
+                        "PenSelfNewTip": {
+                          "FULL_PATH": "/avatar/parameters/OGB/Orf/Steppies_Right/PenSelfNewTip",
+                          "ACCESS": 3,
+                          "TYPE": "f",
+                          "VALUE": [0.0]
+                        },
+                        "PenSelfNewRoot": {
+                          "FULL_PATH": "/avatar/parameters/OGB/Orf/Steppies_Right/PenSelfNewRoot",
+                          "ACCESS": 3,
+                          "TYPE": "f",
+                          "VALUE": [0.0]
+                        }
+                      }
+                    },
+                    "Steppies_Left": {
+                      "FULL_PATH": "/avatar/parameters/OGB/Orf/Steppies_Left",
+                      "ACCESS": 0,
+                      "CONTENTS": {
+                        "PenOthersNewTip": {
+                          "FULL_PATH": "/avatar/parameters/OGB/Orf/Steppies_Left/PenOthersNewTip",
+                          "ACCESS": 3,
+                          "TYPE": "f",
+                          "VALUE": [0.0]
+                        },
+                        "PenOthersNewRoot": {
+                          "FULL_PATH": "/avatar/parameters/OGB/Orf/Steppies_Left/PenOthersNewRoot",
+                          "ACCESS": 3,
+                          "TYPE": "f",
+                          "VALUE": [0.0]
+                        },
+                        "PenSelfNewTip": {
+                          "FULL_PATH": "/avatar/parameters/OGB/Orf/Steppies_Left/PenSelfNewTip",
+                          "ACCESS": 3,
+                          "TYPE": "f",
+                          "VALUE": [0.0]
+                        },
+                        "PenSelfNewRoot": {
+                          "FULL_PATH": "/avatar/parameters/OGB/Orf/Steppies_Left/PenSelfNewRoot",
+                          "ACCESS": 3,
+                          "TYPE": "f",
+                          "VALUE": [0.0]
+                        }
+                      }
+                    }
+                  }
+                },
+                "Pen": {
+                  "FULL_PATH": "/avatar/parameters/OGB/Pen",
+                  "ACCESS": 0,
+                  "CONTENTS": {
+                    "Dick_Mesh_Base": {
+                      "FULL_PATH": "/avatar/parameters/OGB/Pen/Dick_Mesh_Base",
+                      "ACCESS": 0,
+                      "CONTENTS": {
+                        "PenOthers": {
+                          "FULL_PATH": "/avatar/parameters/OGB/Pen/Dick_Mesh_Base/PenOthers",
+                          "ACCESS": 3,
+                          "TYPE": "f",
+                          "VALUE": [0.0]
+                        },
+                        "PenSelf": {
+                          "FULL_PATH": "/avatar/parameters/OGB/Pen/Dick_Mesh_Base/PenSelf",
+                          "ACCESS": 3,
+                          "TYPE": "f",
+                          "VALUE": [0.0]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -53,11 +53,41 @@ impl std::fmt::Debug for OSCQueryNode {
 }
 
 impl OSCQueryNode {
-    pub fn get_parameter(&self) -> Option<Vec<String>> {
-        let root_node = self.clone();
+    pub fn get_full_path(&self) -> &str {
+        return &self.full_path;
+    }
 
-        let avatar_params = root_node.contents.as_ref().unwrap().get("avatar").unwrap();
+    pub fn node_at_path(&self, path: String) -> Option<&OSCQueryNode> {
+        if self.full_path == path {
+            return Some(self);
+        }
 
-        None
+        match &self.data {
+            NodeData::Leaf(_node) => return None,
+            NodeData::Internal(node) => {
+                // Bad suffix hack because when we slice on root, we remove first /
+                //  But when slicing on other nodes, we don't remove leading /
+                let suffix;
+                if self.full_path == "/" {
+                    suffix = Some(path.as_str())
+                } else {
+                    suffix = path.strip_prefix(&self.full_path)
+                }
+                if let Some(remaining_path) = suffix {
+                    let attr = remaining_path[1..]
+                        .chars()
+                        .take_while(|&c| c != '/')
+                        .collect::<String>();
+                    match node.contents.get(&attr) {
+                        Some(child) => {
+                            return child.node_at_path(path.to_string());
+                        }
+                        None => return None,
+                    }
+                } else {
+                    return None;
+                }
+            }
+        }
     }
 }
