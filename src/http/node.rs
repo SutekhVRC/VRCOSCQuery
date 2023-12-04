@@ -65,8 +65,7 @@ impl OSCQueryNode {
         match &self.data {
             NodeData::Leaf(_node) => return None,
             NodeData::Internal(node) => {
-                // Bad suffix hack because when we slice on root, we remove first /
-                //  But when slicing on other nodes, we don't remove leading /
+                // Bad suffix hack (root vs other) because paths don't have ending /
                 let suffix;
                 if self.full_path == "/" {
                     suffix = Some(path.as_str())
@@ -80,7 +79,7 @@ impl OSCQueryNode {
                         .collect::<String>();
                     match node.contents.get(&attr) {
                         Some(child) => {
-                            return child.node_at_path(path.to_string());
+                            return child.node_at_path(path);
                         }
                         None => return None,
                     }
