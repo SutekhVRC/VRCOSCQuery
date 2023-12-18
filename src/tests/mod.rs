@@ -1,21 +1,36 @@
-use crate::http::node;
-use std::{fs::File, io::Read};
+use once_cell::sync::Lazy;
+use std::fs;
 
 use super::*;
 
 pub mod vrc_dependent;
 
-fn parse_rel_file(filepath: &str) -> Result<node::OSCQueryNode, serde_json::Error> {
-    let mut file = File::open(filepath).unwrap();
-    let mut json_data = String::new();
-    file.read_to_string(&mut json_data).unwrap();
-    return serde_json::from_str::<OSCQueryNode>(&json_data);
+static ROOT_NODE: Lazy<OSCQueryNode> =
+    Lazy::<_>::new(|| parse_relative_filepath("./src/tests/example_OGB.json").unwrap());
+
+fn parse_relative_filepath(filepath: &str) -> Result<OSCQueryNode, anyhow::Error> {
+    let data = fs::read_to_string(filepath)?;
+    let node = serde_json::from_str::<OSCQueryNode>(&data)?;
+    Ok(node)
 }
 
 #[test]
-fn test_path() {
-    let root = parse_rel_file("./src/tests/example_OGB.json").unwrap();
+fn known_path_exists() {
     let path_to_get = "/avatar/parameters/vibecheck";
-    let params = root.node_at_path(path_to_get.to_string()).unwrap();
-    assert_eq!(params.full_path, path_to_get)
+    let params = ROOT_NODE.node_at_path(path_to_get.to_string());
+    assert_eq!(params.unwrap().full_path, path_to_get)
+}
+
+#[test]
+fn wrong_path_is_none() {
+    let path_to_get = "/path/that/does/not/exist";
+    let params = ROOT_NODE.node_at_path(path_to_get.to_string());
+    assert!(params.is_none())
+}
+
+#[test]
+fn empty_path_is_none() {
+    let path_to_get = "";
+    let params = ROOT_NODE.node_at_path(path_to_get.to_string());
+    assert!(params.is_none())
 }
