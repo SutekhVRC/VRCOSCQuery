@@ -4,7 +4,7 @@ use std::collections::HashMap;
 #[derive(Serialize, Deserialize)]
 pub struct OSCQueryNode {
     #[serde(rename = "FULL_PATH")]
-    full_path: String,
+    pub full_path: String,
     #[serde(rename = "ACCESS")]
     access: i8,
     #[serde(skip_serializing_if = "Option::is_none", rename = "DESCRIPTION")]
@@ -53,40 +53,28 @@ impl std::fmt::Debug for OSCQueryNode {
 }
 
 impl OSCQueryNode {
-    pub fn get_full_path(&self) -> &str {
-        return &self.full_path;
-    }
-
     pub fn node_at_path(&self, path: String) -> Option<&OSCQueryNode> {
         if self.full_path == path {
             return Some(self);
         }
 
-        match &self.data {
-            NodeData::Leaf(_node) => return None,
-            NodeData::Internal(node) => {
-                // Bad suffix hack (root vs other) because paths don't have ending /
-                let suffix;
-                if self.full_path == "/" {
-                    suffix = Some(path.as_str())
-                } else {
-                    suffix = path.strip_prefix(&self.full_path)
-                }
-                if let Some(remaining_path) = suffix {
-                    let attr = remaining_path[1..]
-                        .chars()
-                        .take_while(|&c| c != '/')
-                        .collect::<String>();
-                    match node.contents.get(&attr) {
-                        Some(child) => {
-                            return child.node_at_path(path);
-                        }
-                        None => return None,
-                    }
-                } else {
-                    return None;
-                }
-            }
-        }
+        let NodeData::Internal(node) = &self.data else {
+            return None;
+        };
+
+        let suffix = if self.full_path == "/" {
+            path.as_str()
+        } else {
+            path.strip_prefix(&self.full_path)?
+        };
+
+        let next_parameter = suffix
+            .chars()
+            .skip(1)
+            .take_while(|&c| c != '/')
+            .collect::<String>();
+
+        let child = node.contents.get(&next_parameter)?;
+        return child.node_at_path(path);
     }
 }

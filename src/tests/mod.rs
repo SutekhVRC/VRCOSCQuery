@@ -17,5 +17,5 @@ fn test_path() {
     let root = parse_rel_file("./src/tests/example_OGB.json").unwrap();
     let path_to_get = "/avatar/parameters/vibecheck";
     let params = root.node_at_path(path_to_get.to_string()).unwrap();
-    assert_eq!(params.get_full_path(), path_to_get)
+    assert_eq!(params.full_path, path_to_get)
 }
