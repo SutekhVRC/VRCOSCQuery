@@ -1,5 +1,5 @@
 use once_cell::sync::Lazy;
-use std::fs;
+use std::{collections::HashSet, fs};
 
 use super::*;
 
@@ -33,4 +33,16 @@ fn empty_path_is_none() {
     let path_to_get = "";
     let params = ROOT_NODE.node_at_path(path_to_get.to_string());
     assert!(params.is_none())
+}
+
+#[test]
+fn leaf_params_on_subnode() {
+    let path_to_get = "/avatar/parameters/OGB/Pen";
+    let ogb_pen_node = ROOT_NODE.node_at_path(path_to_get.to_string()).unwrap();
+    let ogb_pen_params = HashSet::from_iter(ogb_pen_node.leaf_params());
+    let expected = HashSet::from([
+        "/avatar/parameters/OGB/Pen/Mesh/PenSelf",
+        "/avatar/parameters/OGB/Pen/Mesh/PenOthers",
+    ]);
+    assert_eq!(ogb_pen_params, expected)
 }
