@@ -139,17 +139,17 @@
                   "ACCESS": 0,
                   "CONTENTS": {
                     "Dick_Mesh_Base": {
-                      "FULL_PATH": "/avatar/parameters/OGB/Pen/Dick_Mesh_Base",
+                      "FULL_PATH": "/avatar/parameters/OGB/Pen/Mesh",
                       "ACCESS": 0,
                       "CONTENTS": {
                         "PenOthers": {
-                          "FULL_PATH": "/avatar/parameters/OGB/Pen/Dick_Mesh_Base/PenOthers",
+                          "FULL_PATH": "/avatar/parameters/OGB/Pen/Mesh/PenOthers",
                           "ACCESS": 3,
                           "TYPE": "f",
                           "VALUE": [0.0]
                         },
                         "PenSelf": {
-                          "FULL_PATH": "/avatar/parameters/OGB/Pen/Dick_Mesh_Base/PenSelf",
+                          "FULL_PATH": "/avatar/parameters/OGB/Pen/Mesh/PenSelf",
                           "ACCESS": 3,
                           "TYPE": "f",
                           "VALUE": [0.0]
