@@ -81,13 +81,11 @@ impl OSCQueryNode {
     pub fn leaf_params(&self) -> Vec<&str> {
         return match &self.data {
             NodeData::Leaf(_) => vec![&self.full_path],
-            NodeData::Internal(internal) => {
-                return internal
-                    .contents
-                    .iter()
-                    .flat_map(|(_, node)| node.leaf_params())
-                    .collect()
-            }
+            NodeData::Internal(internal) => internal
+                .contents
+                .iter()
+                .flat_map(|(_, node)| node.leaf_params())
+                .collect(),
         };
     }
 }
