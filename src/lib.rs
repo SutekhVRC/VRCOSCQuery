@@ -1,8 +1,8 @@
 use crate::http::json_models::{HostInfo, HostInfoExtensions};
 use crate::http::OQHTTPHandler;
 use crate::mdns::{get_target_service, OQMDNSHandler, OSC_JSON_SERVICE};
-use http::node::OSCQueryNode;
 use mdns_sd::ServiceInfo;
+use node::OSCQueryNode;
 use std::net::{IpAddr, SocketAddrV4};
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
@@ -17,6 +17,7 @@ use std::println as info;
 
 pub mod http;
 pub mod mdns;
+pub mod node;
 
 #[cfg(test)]
 mod tests;

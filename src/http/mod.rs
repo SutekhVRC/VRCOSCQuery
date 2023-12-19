@@ -11,7 +11,6 @@ use tokio::{
 };
 
 pub mod json_models;
-pub mod node;
 
 const HTTP_RESPONSE_BASE: &'static str = "HTTP/1.1 200\r\nContent-Type: application/json\r\n";
 
