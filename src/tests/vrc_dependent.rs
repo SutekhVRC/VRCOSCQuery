@@ -73,7 +73,10 @@ fn detect_vrchat() {
     let http_addr = SocketAddrV4::new(Ipv4Addr::new(172, 19, 19, 244), 8080);
 
     let mut instance = OSCQuery::new("VibeCheck".to_string(), http_addr, osc_addr);
-    let resolved_vrc_service = instance.mdns_search("VRChat-Client-".to_string(), OSC_JSON_SERVICE);
+    let resolved_vrc_service = instance
+        .mdns_search("VRChat-Client-".to_string(), OSC_JSON_SERVICE)
+        .ok()
+        .unwrap();
     info!(
         "[+] Got VRChat OSC JSON: {}",
         resolved_vrc_service.get_hostname()

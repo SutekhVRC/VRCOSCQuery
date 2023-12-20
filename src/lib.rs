@@ -6,6 +6,7 @@ use node::OSCQueryNode;
 use std::net::{IpAddr, SocketAddrV4};
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
+use thiserror::Error;
 use tokio::runtime::Runtime;
 use tokio::sync::watch;
 
@@ -31,6 +32,20 @@ pub struct OSCQuery {
     thread_rx: Option<watch::Receiver<AtomicBool>>,
     mdns_handler: Option<OQMDNSHandler>,
     vrchat_parameters: Option<OSCQueryNode>,
+}
+
+#[derive(Error, Debug)]
+pub enum OQError {
+    #[error("error from serde")]
+    SerdeError(#[from] serde_json::Error),
+    #[error("error from reqwest")]
+    RwquestError(#[from] reqwest::Error),
+    #[error("error from mdns")]
+    MDNSError(#[from] mdns_sd::Error),
+    #[error("no service daemon")]
+    NoServiceDaemon,
+    #[error("no mdns handler")]
+    NoMdnsHandler,
 }
 
 impl OSCQuery {
@@ -99,9 +114,13 @@ impl OSCQuery {
         info!("[+] HTTP service running..");
     }
 
-    pub fn register_mdns_service(&self) {
+    pub fn register_mdns_service(&self) -> Result<(), OQError> {
         info!("[+] Registering mDNS service for {}", self.app_name);
-        self.mdns_handler.as_ref().unwrap().register();
+        self.mdns_handler
+            .as_ref()
+            .ok_or_else(|| OQError::NoServiceDaemon)?
+            .register()?;
+        Ok(())
     }
 
     pub fn unregister_mdns_service(&self) {
@@ -112,21 +131,27 @@ impl OSCQuery {
         &mut self,
         service_prefix: String,
         service_type: &'static str,
-    ) -> ServiceInfo {
+    ) -> Result<ServiceInfo, OQError> {
         info!("[+] Searching for {}", service_prefix);
         let s_info = get_target_service(
-            self.mdns_handler.as_ref().unwrap(),
+            self.mdns_handler
+                .as_ref()
+                .ok_or_else(|| OQError::NoServiceDaemon)?,
             service_prefix,
             service_type,
-        );
+        )?;
         info!("[+] Got service info: {}", s_info.get_hostname());
-        s_info
+        Ok(s_info)
     }
 
-    pub fn populate_vrc_params(&mut self, service_prefix: String, service_type: &'static str) {
+    pub fn populate_vrc_params(
+        &mut self,
+        service_prefix: String,
+        service_type: &'static str,
+    ) -> Result<(), OQError> {
         info!("[*] Populating parameters from TCP/JSON service..");
 
-        let s_info = self.mdns_search(service_prefix, service_type);
+        let s_info = self.mdns_search(service_prefix, service_type)?;
         let host = s_info
             .get_addresses()
             .iter()
@@ -139,30 +164,23 @@ impl OSCQuery {
 
         info!("[*] Requesting index endpoint: {}", index_enpdoint);
 
-        let http_res = match reqwest::blocking::get(index_enpdoint) {
-            Ok(res) => res,
-            Err(_e) => return,
-        };
-
-        let json_res = match http_res.text() {
-            Ok(r) => r,
-            Err(_e) => return,
-        };
+        let http_res = reqwest::blocking::get(index_enpdoint)?;
+        let json_res = http_res.text()?;
 
         let node_tree = match serde_json::from_str::<OSCQueryNode>(&json_res) {
             Ok(jr) => jr,
             Err(e) => {
                 info!("[-] Failed to deserialize: {}\n{:?}", e, json_res);
-                return;
+                return Err(OQError::SerdeError(e));
             }
         };
 
         info!("[+] Successfully parsed index node tree.");
-
         self.vrchat_parameters = Some(node_tree);
+        Ok(())
     }
 
-    pub fn attempt_force_vrc_response_detect(&self, attempts: u64) {
+    pub fn attempt_force_vrc_response_detect(&self, attempts: u64) -> Result<(), OQError> {
         let app_name = self.app_name.clone();
         let http_net = self.http_net.clone();
         std::thread::spawn(move || {
@@ -175,15 +193,24 @@ impl OSCQuery {
                 mdns_force.shutdown_daemon();
             }
         });
+        Ok(())
     }
 
-    pub fn initialize_mdns(&mut self) {
+    pub fn initialize_mdns(&mut self) -> Result<(), OQError> {
         self.mdns_handler = Some(OQMDNSHandler::new(self.app_name.clone(), self.http_net));
-        self.mdns_handler.as_mut().unwrap().start_daemon();
+        self.mdns_handler
+            .as_mut()
+            .ok_or_else(|| OQError::NoMdnsHandler)?
+            .start_daemon()?;
+        Ok(())
     }
 
-    pub fn shutdown_mdns(&mut self) {
-        let mut h = self.mdns_handler.take().unwrap();
-        h.shutdown_daemon();
+    pub fn shutdown_mdns(&mut self) -> Result<(), OQError> {
+        let mut h = self
+            .mdns_handler
+            .take()
+            .ok_or_else(|| OQError::NoMdnsHandler)?;
+        h.shutdown_daemon()?;
+        Ok(())
     }
 }

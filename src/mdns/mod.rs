@@ -1,3 +1,5 @@
+use crate::OQError;
+
 use super::info;
 use mdns_sd::{IfKind, ServiceDaemon, ServiceEvent, ServiceInfo};
 use std::net::SocketAddrV4;
@@ -32,34 +34,38 @@ impl OQMDNSHandler {
         }
     }
 
-    pub fn start_daemon(&mut self) {
+    pub fn start_daemon(&mut self) -> Result<(), OQError> {
         self.service_daemon = Some(ServiceDaemon::new().unwrap());
         self.service_daemon
             .as_ref()
-            .unwrap()
-            .disable_interface(IfKind::IPv6)
-            .unwrap();
+            .ok_or_else(|| OQError::NoServiceDaemon)?
+            .disable_interface(IfKind::IPv6)?;
+        Ok(())
     }
 
-    pub fn shutdown_daemon(&mut self) {
-        self.service_daemon.take().unwrap().shutdown().unwrap();
+    pub fn shutdown_daemon(&mut self) -> Result<(), OQError> {
+        self.service_daemon
+            .take()
+            .ok_or_else(|| OQError::NoServiceDaemon)?
+            .shutdown()?;
+        Ok(())
     }
 
-    pub fn register(&self) {
+    pub fn register(&self) -> Result<(), OQError> {
         self.service_daemon
             .as_ref()
-            .unwrap()
-            .register(self.service_info.clone())
-            .unwrap();
+            .ok_or_else(|| OQError::NoServiceDaemon)?
+            .register(self.service_info.clone())?;
         info!("[+] Registered mDNS service.");
+        Ok(())
     }
-    pub fn unregister(&self) {
+    pub fn unregister(&self) -> Result<(), OQError> {
         self.service_daemon
             .as_ref()
-            .unwrap()
-            .unregister(&self.service_info.get_type())
-            .unwrap();
+            .ok_or_else(|| OQError::NoServiceDaemon)?
+            .unregister(&self.service_info.get_type())?;
         info!("[+] Unregistered {}", self.service_info.get_type());
+        Ok(())
     }
 }
 
@@ -67,13 +73,12 @@ pub fn get_target_service(
     mdns_handler: &OQMDNSHandler,
     match_prefix: String,
     s_type: &'static str,
-) -> ServiceInfo {
+) -> Result<ServiceInfo, OQError> {
     let service_receiver = mdns_handler
         .service_daemon
         .as_ref()
-        .unwrap()
-        .browse(s_type)
-        .unwrap();
+        .ok_or_else(|| OQError::NoServiceDaemon)?
+        .browse(s_type)?;
     info!("[*] mDNS browsing..");
 
     loop {
@@ -81,7 +86,7 @@ pub fn get_target_service(
         match event {
             ServiceEvent::ServiceResolved(service_info) => {
                 if service_info.get_fullname().starts_with(&match_prefix) {
-                    return service_info;
+                    return Ok(service_info);
                 }
             }
             e => info!("[?] NOT RESOLVED {:?}", e),
