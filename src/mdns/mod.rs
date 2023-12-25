@@ -13,7 +13,7 @@ pub struct OQMDNSHandler {
 }
 
 impl OQMDNSHandler {
-    pub fn new(app_name: String, http_addr: SocketAddrV4) -> Self {
+    pub fn new(app_name: String, http_addr: SocketAddrV4) -> Result<Self, mdns_sd::Error> {
         let mdns_properties = vec![("mjau", "grr")];
         let ip_addr = *http_addr.ip();
         let port = http_addr.port();
@@ -25,17 +25,16 @@ impl OQMDNSHandler {
             ip_addr.to_string(),
             port,
             &mdns_properties[..],
-        )
-        .unwrap();
+        )?;
 
-        OQMDNSHandler {
+        Ok(OQMDNSHandler {
             service_daemon: None,
             service_info,
-        }
+        })
     }
 
     pub fn start_daemon(&mut self) -> Result<(), OQError> {
-        self.service_daemon = Some(ServiceDaemon::new().unwrap());
+        self.service_daemon = Some(ServiceDaemon::new()?);
         self.service_daemon
             .as_ref()
             .ok_or_else(|| OQError::NoServiceDaemon)?
@@ -82,14 +81,15 @@ pub fn get_target_service(
     info!("[*] mDNS browsing..");
 
     loop {
-        let event = service_receiver.recv().unwrap();
-        match event {
-            ServiceEvent::ServiceResolved(service_info) => {
-                if service_info.get_fullname().starts_with(&match_prefix) {
-                    return Ok(service_info);
+        if let Some(event) = service_receiver.recv().ok() {
+            match event {
+                ServiceEvent::ServiceResolved(service_info) => {
+                    if service_info.get_fullname().starts_with(&match_prefix) {
+                        return Ok(service_info);
+                    }
                 }
+                e => info!("[?] NOT RESOLVED {:?}", e),
             }
-            e => info!("[?] NOT RESOLVED {:?}", e),
         }
     }
 }
