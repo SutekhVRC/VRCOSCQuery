@@ -64,7 +64,8 @@ pub struct OSCQuery {
 
 impl OSCQuery {
     pub fn new(app_name: String, http_net: SocketAddrV4, osc_net: SocketAddrV4) -> Self {
-        let mdns_handler = OQMDNSHandler::new(app_name.clone(), http_net).expect("could not create mdns handler");
+        let mdns_handler =
+            OQMDNSHandler::new(app_name.clone(), http_net).expect("could not create mdns handler");
         OSCQuery {
             app_name,
             http_net,
@@ -190,10 +191,10 @@ impl OSCQuery {
 
     pub fn attempt_force_vrc_response_detect(&self, attempts: u64) -> Result<(), OQError> {
         let app_name = self.app_name.clone();
-        let http_net = self.http_net.clone();
+        let http_net = self.http_net;
         let thread = std::thread::spawn(move || -> Result<(), OQError> {
             for _ in 0..attempts {
-                if let Some(mut mdns_force) = OQMDNSHandler::new(app_name.clone(), http_net).ok() {
+                if let Ok(mut mdns_force) = OQMDNSHandler::new(app_name.clone(), http_net) {
                     mdns_force.register()?;
                     get_target_service(
                         &mdns_force,

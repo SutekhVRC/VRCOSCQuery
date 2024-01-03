@@ -4,8 +4,8 @@ use super::info;
 use mdns_sd::{IfKind, ServiceDaemon, ServiceEvent, ServiceInfo};
 use std::net::SocketAddrV4;
 
-pub const OSC_JSON_SERVICE: &'static str = "_oscjson._tcp.local.";
-pub const OSC_SERVICE: &'static str = "_osc._udp.local.";
+pub const OSC_JSON_SERVICE: &str = "_oscjson._tcp.local.";
+pub const OSC_SERVICE: &str = "_osc._udp.local.";
 
 pub struct OQMDNSHandler {
     service_daemon: ServiceDaemon,
@@ -14,7 +14,7 @@ pub struct OQMDNSHandler {
 
 impl OQMDNSHandler {
     pub fn new(app_name: String, http_addr: SocketAddrV4) -> Result<Self, mdns_sd::Error> {
-        let mdns_properties = vec![("mjau", "grr")];
+        let mdns_properties = [("mjau", "grr")];
         let ip_addr = *http_addr.ip();
         let port = http_addr.port();
 
@@ -50,7 +50,7 @@ impl OQMDNSHandler {
 
     pub fn unregister(&self) -> Result<(), OQError> {
         self.service_daemon
-            .unregister(&self.service_info.get_type())?;
+            .unregister(self.service_info.get_type())?;
         info!("[+] Unregistered {}", self.service_info.get_type());
         Ok(())
     }
@@ -65,7 +65,7 @@ pub fn get_target_service(
     info!("[*] mDNS browsing..");
 
     loop {
-        if let Some(event) = service_receiver.recv().ok() {
+        if let Ok(event) = service_receiver.recv() {
             match event {
                 ServiceEvent::ServiceResolved(service_info) => {
                     if service_info.get_fullname().starts_with(&match_prefix) {

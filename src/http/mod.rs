@@ -12,9 +12,8 @@ use tokio::{
 
 pub mod json_models;
 
-const HTTP_RESPONSE_BASE: &'static str = "HTTP/1.1 200\r\nContent-Type: application/json\r\n";
-
-const HTTP_INDEX: &'static str = "{\"DESCRIPTION\": \"root node\",\"FULL_PATH\": \"/\",\"ACCESS\": 0,\"CONTENTS\": {\"avatar\": {\"FULL_PATH\": \"/avatar\",\"ACCESS\": 0,\"CONTENTS\": {\"change\": {\"DESCRIPTION\": \"Avatar ID, updated whenever the user switches into a valid avatar.\",\"FULL_PATH\": \"/avatar/change\",\"ACCESS\": 1,\"TYPE\": \"s\",\"VALUE\": [\"avtr_id_lol\"]}}}}}";
+const HTTP_RESPONSE_BASE: &str = "HTTP/1.1 200\r\nContent-Type: application/json\r\n";
+const HTTP_INDEX: &str = "{\"DESCRIPTION\": \"root node\",\"FULL_PATH\": \"/\",\"ACCESS\": 0,\"CONTENTS\": {\"avatar\": {\"FULL_PATH\": \"/avatar\",\"ACCESS\": 0,\"CONTENTS\": {\"change\": {\"DESCRIPTION\": \"Avatar ID, updated whenever the user switches into a valid avatar.\",\"FULL_PATH\": \"/avatar/change\",\"ACCESS\": 1,\"TYPE\": \"s\",\"VALUE\": [\"avtr_id_lol\"]}}}}}";
 
 pub struct OQHTTPHandler<'hostinfo> {
     thread_rx: Receiver<AtomicBool>,
