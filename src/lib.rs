@@ -23,17 +23,6 @@ pub mod node;
 #[cfg(test)]
 mod tests;
 
-pub struct OSCQuery {
-    app_name: String,
-    http_net: SocketAddrV4,
-    osc_net: SocketAddrV4,
-    async_runtime: Option<Runtime>,
-    thread_tx: Option<watch::Sender<AtomicBool>>,
-    thread_rx: Option<watch::Receiver<AtomicBool>>,
-    mdns_handler: Option<OQMDNSHandler>,
-    vrchat_parameters: Option<OSCQueryNode>,
-}
-
 #[derive(Error, Debug)]
 pub enum OQError {
     #[error("Io error: {0}")]
@@ -50,10 +39,6 @@ pub enum OQError {
     SendError(#[from] tokio::sync::watch::error::SendError<AtomicBool>),
     #[error("ThreadJoinerror")]
     ThreadJoin,
-    #[error("No service daemon")]
-    NoServiceDaemon,
-    #[error("No mdns handler")]
-    NoMdnsHandler,
     #[error("No bound address on http handler")]
     NoBoundAddress,
     #[error("No tx thread")]
@@ -66,8 +51,20 @@ pub enum OQError {
     InvalidHttpBuffer,
 }
 
+pub struct OSCQuery {
+    app_name: String,
+    http_net: SocketAddrV4,
+    osc_net: SocketAddrV4,
+    async_runtime: Option<Runtime>,
+    thread_tx: Option<watch::Sender<AtomicBool>>,
+    thread_rx: Option<watch::Receiver<AtomicBool>>,
+    mdns_handler: OQMDNSHandler,
+    vrchat_parameters: Option<OSCQueryNode>,
+}
+
 impl OSCQuery {
     pub fn new(app_name: String, http_net: SocketAddrV4, osc_net: SocketAddrV4) -> Self {
+        let mdns_handler = OQMDNSHandler::new(app_name.clone(), http_net).expect("could not create mdns handler");
         OSCQuery {
             app_name,
             http_net,
@@ -75,7 +72,7 @@ impl OSCQuery {
             async_runtime: None,
             thread_tx: None,
             thread_rx: None,
-            mdns_handler: None,
+            mdns_handler,
             vrchat_parameters: None,
         }
     }
@@ -143,10 +140,7 @@ impl OSCQuery {
 
     pub fn register_mdns_service(&self) -> Result<(), OQError> {
         info!("[+] Registering mDNS service for {}", self.app_name);
-        self.mdns_handler
-            .as_ref()
-            .ok_or_else(|| OQError::NoServiceDaemon)?
-            .register()?;
+        self.mdns_handler.register()?;
         Ok(())
     }
 
@@ -160,13 +154,7 @@ impl OSCQuery {
         service_type: &'static str,
     ) -> Result<ServiceInfo, OQError> {
         info!("[+] Searching for {}", service_prefix);
-        let s_info = get_target_service(
-            self.mdns_handler
-                .as_ref()
-                .ok_or_else(|| OQError::NoServiceDaemon)?,
-            service_prefix,
-            service_type,
-        )?;
+        let s_info = get_target_service(&self.mdns_handler, service_prefix, service_type)?;
         info!("[+] Got service info: {}", s_info.get_hostname());
         Ok(s_info)
     }
@@ -206,7 +194,6 @@ impl OSCQuery {
         let thread = std::thread::spawn(move || -> Result<(), OQError> {
             for _ in 0..attempts {
                 if let Some(mut mdns_force) = OQMDNSHandler::new(app_name.clone(), http_net).ok() {
-                    mdns_force.start_daemon()?;
                     mdns_force.register()?;
                     get_target_service(
                         &mdns_force,
@@ -223,21 +210,8 @@ impl OSCQuery {
         Ok(())
     }
 
-    pub fn initialize_mdns(&mut self) -> Result<(), OQError> {
-        self.mdns_handler = Some(OQMDNSHandler::new(self.app_name.clone(), self.http_net)?);
-        self.mdns_handler
-            .as_mut()
-            .ok_or_else(|| OQError::NoMdnsHandler)?
-            .start_daemon()?;
-        Ok(())
-    }
-
     pub fn shutdown_mdns(&mut self) -> Result<(), OQError> {
-        let mut h = self
-            .mdns_handler
-            .take()
-            .ok_or_else(|| OQError::NoMdnsHandler)?;
-        h.shutdown_daemon()?;
+        self.mdns_handler.shutdown_daemon()?;
         Ok(())
     }
 }

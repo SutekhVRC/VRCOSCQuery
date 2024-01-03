@@ -8,7 +8,7 @@ pub const OSC_JSON_SERVICE: &'static str = "_oscjson._tcp.local.";
 pub const OSC_SERVICE: &'static str = "_osc._udp.local.";
 
 pub struct OQMDNSHandler {
-    service_daemon: Option<ServiceDaemon>,
+    service_daemon: ServiceDaemon,
     service_info: ServiceInfo,
 }
 
@@ -27,41 +27,29 @@ impl OQMDNSHandler {
             &mdns_properties[..],
         )?;
 
+        let service_daemon = ServiceDaemon::new().expect("could not create service daemon");
+        service_daemon
+            .disable_interface(IfKind::IPv6)
+            .expect("could not disable IPv6 on service daemon");
         Ok(OQMDNSHandler {
-            service_daemon: None,
+            service_daemon,
             service_info,
         })
     }
 
-    pub fn start_daemon(&mut self) -> Result<(), OQError> {
-        self.service_daemon = Some(ServiceDaemon::new()?);
-        self.service_daemon
-            .as_ref()
-            .ok_or_else(|| OQError::NoServiceDaemon)?
-            .disable_interface(IfKind::IPv6)?;
-        Ok(())
-    }
-
     pub fn shutdown_daemon(&mut self) -> Result<(), OQError> {
-        self.service_daemon
-            .take()
-            .ok_or_else(|| OQError::NoServiceDaemon)?
-            .shutdown()?;
+        self.service_daemon.shutdown()?;
         Ok(())
     }
 
     pub fn register(&self) -> Result<(), OQError> {
-        self.service_daemon
-            .as_ref()
-            .ok_or_else(|| OQError::NoServiceDaemon)?
-            .register(self.service_info.clone())?;
+        self.service_daemon.register(self.service_info.clone())?;
         info!("[+] Registered mDNS service.");
         Ok(())
     }
+
     pub fn unregister(&self) -> Result<(), OQError> {
         self.service_daemon
-            .as_ref()
-            .ok_or_else(|| OQError::NoServiceDaemon)?
             .unregister(&self.service_info.get_type())?;
         info!("[+] Unregistered {}", self.service_info.get_type());
         Ok(())
@@ -73,11 +61,7 @@ pub fn get_target_service(
     match_prefix: String,
     s_type: &'static str,
 ) -> Result<ServiceInfo, OQError> {
-    let service_receiver = mdns_handler
-        .service_daemon
-        .as_ref()
-        .ok_or_else(|| OQError::NoServiceDaemon)?
-        .browse(s_type)?;
+    let service_receiver = mdns_handler.service_daemon.browse(s_type)?;
     info!("[*] mDNS browsing..");
 
     loop {

@@ -33,7 +33,6 @@ fn test_node_parse() {
 
     let mut instance = OSCQuery::new("VibeCheck".to_string(), http_addr, osc_addr);
     instance.start_http_json().ok();
-    instance.initialize_mdns().ok();
     instance.register_mdns_service().ok();
 
     instance
