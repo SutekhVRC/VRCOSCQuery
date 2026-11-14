@@ -438,7 +438,7 @@ checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 [[package]]
 name = "mdns-sd"
 version = "0.21.7"
-source = "git+https://github.com/SutekhVRC/mdns-sd?branch=answer-any-for-service-type#0f300e98ee5307751f8adf08f0199ed691d4d3a5"
+source = "git+https://github.com/SutekhVRC/mdns-sd?rev=0f300e98ee5307751f8adf08f0199ed691d4d3a5#0f300e98ee5307751f8adf08f0199ed691d4d3a5"
 dependencies = [
  "fastrand",
  "flume",

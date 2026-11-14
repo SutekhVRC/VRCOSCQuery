@@ -13,10 +13,13 @@ serde = { version = "1.0.193", features = ["derive"] }
 serde_json = "1.0.108"
 # mdns-sd with ANY questions for a service type answered like PTR questions
 # (PTR in Answers, SRV/TXT/A in Additionals). VRChat browses with ANY and
-# never finds the service otherwise; see VRChatOSCQueryBugs.md. A direct git
-# dependency (not [patch]) so apps using this library get the fix too.
-# Switch back to crates.io once it's released upstream (keepsimple1/mdns-sd).
-mdns-sd = { git = "https://github.com/SutekhVRC/mdns-sd", branch = "answer-any-for-service-type" }
+# never finds the service otherwise; see VRChatOSCQueryBugs.md. The fix lives
+# on our fork (branch answer-any-for-service-type, based on upstream
+# keepsimple1/mdns-sd), pinned to a commit so builds don't change when the
+# branch moves. A direct git dependency (not [patch]) so apps using this
+# library get the fix too. To update: rebase the branch onto upstream main,
+# push, and move the rev here.
+mdns-sd = { git = "https://github.com/SutekhVRC/mdns-sd", rev = "0f300e98ee5307751f8adf08f0199ed691d4d3a5" }
 reqwest = { version = "0.12", default-features = false }
 thiserror = "1.0.51"
 
