@@ -45,71 +45,122 @@ async fn reads_vrchats_avatar_parameters() {
 /// advertising and measures how long VRChat keeps sending to the port.
 /// Move around or change a parameter in VRChat while it runs.
 ///
-/// The socket stays bound until VRChat has been quiet for 5 seconds (up to
-/// 60 s after the goodbye), so VRChat never sends to a closed port.
+/// `HOST_INFO` gives 127.0.0.1, but VRChat used to ignore `OSC_IP` and send
+/// to the machine's LAN address instead (see VRChatOSCQueryBugs.md). So the
+/// same port is also bound on the LAN address, and the test reports which
+/// address VRChat sent to. Either way nothing is sent to a closed port.
+///
+/// Both sockets stay bound until VRChat has been quiet for 5 seconds (up to
+/// 60 s after the goodbye).
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs VRChat"]
 async fn vrchat_sends_to_an_advertised_port() {
-    // Shows HTTP requests (did VRChat ask for HOST_INFO?) and, with
-    // RUST_LOG=vrcoscquery=debug,mdns_sd=debug, the mDNS traffic
+    // Shows HTTP requests (did VRChat ask for HOST_INFO, and on which
+    // address?) and, with RUST_LOG=vrcoscquery=debug,mdns_sd=debug, the
+    // mDNS traffic
     let _ = env_logger::Builder::from_env(
         env_logger::Env::default().default_filter_or("vrcoscquery=debug"),
     )
     .is_test(true)
     .try_init();
-    let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
-    socket
-        .set_read_timeout(Some(Duration::from_millis(100)))
-        .unwrap();
-    let SocketAddr::V4(osc_addr) = socket.local_addr().unwrap() else {
+
+    let loopback = UdpSocket::bind("127.0.0.1:0").unwrap();
+    let SocketAddr::V4(osc_addr) = loopback.local_addr().unwrap() else {
         unreachable!()
     };
+    let lan_ip = lan_ip();
+    let lan = UdpSocket::bind((lan_ip, osc_addr.port())).unwrap();
+    for socket in [&loopback, &lan] {
+        socket
+            .set_read_timeout(Some(Duration::from_millis(50)))
+            .unwrap();
+    }
+
     let service = OscQueryService::start("VRCOSCQuery Test", osc_addr)
         .await
         .unwrap();
     println!(
-        "Advertising OSC on {osc_addr} (HTTP on port {}); waiting up to 30 s for VRChat",
+        "Advertising OSC on {osc_addr} (also listening on {lan_ip}:{}), HTTP on port {}; waiting up to 30 s for VRChat",
+        osc_addr.port(),
         service.http_addr().port()
     );
 
-    let mut buffer = [0u8; 1536];
     let deadline = Instant::now() + Duration::from_secs(30);
-    let mut received = 0;
-    let mut first_at = None;
+    let mut counts = Counts::default();
     let started = Instant::now();
-    while Instant::now() < deadline && received < 50 {
-        if socket.recv(&mut buffer).is_ok() {
-            received += 1;
-            first_at.get_or_insert(started.elapsed());
-        }
+    while Instant::now() < deadline && counts.total() < 50 {
+        counts.poll(&loopback, &lan, started);
     }
-    println!("Received {received} OSC packets; first after {first_at:?}");
+    println!(
+        "Received {} OSC packets on 127.0.0.1 and {} on {lan_ip}; first after {:?}",
+        counts.loopback, counts.lan, counts.first_at
+    );
 
     service.stop();
     let goodbye = Instant::now();
-    let mut after_goodbye = 0;
-    let mut last_at = None;
+    let mut after = Counts::default();
+    let mut last_total = 0;
     let mut last_packet = Instant::now();
     while last_packet.elapsed() < Duration::from_secs(5)
         && goodbye.elapsed() < Duration::from_secs(60)
     {
-        if socket.recv(&mut buffer).is_ok() {
-            after_goodbye += 1;
+        after.poll(&loopback, &lan, goodbye);
+        if after.total() > last_total {
+            last_total = after.total();
             last_packet = Instant::now();
-            last_at = Some(goodbye.elapsed());
         }
     }
     println!(
-        "After the goodbye: {after_goodbye} packets, the last {last_at:?} after it{}",
+        "After the goodbye: {} packets on 127.0.0.1 and {} on {lan_ip}, the last {:?} after it{}",
+        after.loopback,
+        after.lan,
+        (after.total() > 0).then(|| last_packet - goodbye),
         if goodbye.elapsed() >= Duration::from_secs(60) {
             " (VRChat was still sending after 60 s)"
         } else {
             ""
         }
     );
-    drop(socket);
+    drop(loopback);
+    drop(lan);
     assert!(
-        received > 0,
+        counts.total() > 0,
         "VRChat didn't send anything to the advertised port"
     );
+}
+
+#[derive(Default)]
+struct Counts {
+    loopback: usize,
+    lan: usize,
+    first_at: Option<Duration>,
+}
+
+impl Counts {
+    fn total(&self) -> usize {
+        self.loopback + self.lan
+    }
+
+    fn poll(&mut self, loopback: &UdpSocket, lan: &UdpSocket, since: Instant) {
+        let mut buffer = [0u8; 1536];
+        if loopback.recv(&mut buffer).is_ok() {
+            self.loopback += 1;
+            self.first_at.get_or_insert(since.elapsed());
+        }
+        if lan.recv(&mut buffer).is_ok() {
+            self.lan += 1;
+            self.first_at.get_or_insert(since.elapsed());
+        }
+    }
+}
+
+/// This machine's LAN address: the one it would use to reach the internet.
+/// Connecting a UDP socket sends nothing.
+fn lan_ip() -> std::net::Ipv4Addr {
+    let probe = UdpSocket::bind("0.0.0.0:0").unwrap();
+    probe.connect("8.8.8.8:80").unwrap();
+    match probe.local_addr().unwrap() {
+        SocketAddr::V4(addr) => *addr.ip(),
+        SocketAddr::V6(_) => unreachable!(),
+    }
 }

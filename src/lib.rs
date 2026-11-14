@@ -16,7 +16,8 @@
 //! use std::time::Duration;
 //!
 //! // Your OSC socket, bound on a free port
-//! let osc = std::net::UdpSocket::bind("127.0.0.1:0")?;
+//! // 0.0.0.0: VRChat sends to the LAN address, whatever HOST_INFO says
+//! let osc = std::net::UdpSocket::bind("0.0.0.0:0")?;
 //! let SocketAddr::V4(osc_addr) = osc.local_addr()? else { unreachable!() };
 //!
 //! // VRChat will send avatar parameters to `osc_addr`

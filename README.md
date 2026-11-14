@@ -12,8 +12,9 @@ Everything runs on your tokio runtime, and nothing blocks forever: discovery tak
 ```rust
 use std::net::SocketAddr;
 
-// Bind your OSC socket on a free port
-let osc = tokio::net::UdpSocket::bind("127.0.0.1:0").await?;
+// Bind your OSC socket on a free port, on all interfaces: VRChat sends to
+// the LAN address whatever HOST_INFO says (see below)
+let osc = tokio::net::UdpSocket::bind("0.0.0.0:0").await?;
 let SocketAddr::V4(osc_addr) = osc.local_addr()? else { unreachable!() };
 
 // VRChat will now send avatar data to `osc_addr`
@@ -28,11 +29,15 @@ service.stop();
 The service:
 - registers `_oscjson._tcp` (its HTTP server) and `_osc._udp` (your OSC port) on this machine's network interfaces;
 - serves `/?HOST_INFO` (your OSC address) and a node tree with `/avatar/change`, which is what tells VRChat to send avatar data;
-- on stop or drop, sends mDNS goodbyes so VRChat stops sending, and frees its HTTP port.
+- on stop or drop, sends mDNS goodbyes and frees its HTTP port.
+
+mDNS is done with [mdns-sd](https://crates.io/crates/mdns-sd), with one fix VRChat needs: VRChat browses with ANY questions (not PTR), and only accepts answers with the PTR in Answers and SRV/TXT/A in Additionals. mdns-sd only sends that for PTR questions, so the fix answers ANY questions for a service type the same way. Without it VRChat never finds the service. See [VRChatOSCQueryBugs.md](VRChatOSCQueryBugs.md).
 
 If VRChat started after your service and hasn't picked it up, `service.reannounce()` announces it again.
 
-**Keep your OSC socket bound** while the service runs and for a while after stopping it. VRChat may keep sending for a moment after the goodbye, and failed sends to a closed port (especially through Proton) count toward VRChat's "OSC sending failed too often", after which it stops sending OSC until it restarts. Never advertise a port nothing listens on.
+Things VRChat does that your app has to allow for (details in [VRChatOSCQueryBugs.md](VRChatOSCQueryBugs.md)):
+- **It ignores `OSC_IP`** and sends to this machine's LAN address on `OSC_PORT`. Bind your OSC socket to `0.0.0.0` (or the LAN address); a socket on `127.0.0.1` alone gets nothing. This opens the port to your local network.
+- **It ignores the goodbye** and keeps sending to a service it found, probably until VRChat restarts. Keep your OSC socket bound for as long as your app runs, and reuse the same port next time. Failed sends to a closed port can count toward VRChat's "OSC sending failed too often" (seen through Proton), after which it stops sending OSC until restarted. Never advertise a port nothing listens on.
 
 ## Find and read VRChat
 

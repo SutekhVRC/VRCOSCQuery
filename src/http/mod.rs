@@ -109,9 +109,17 @@ async fn answer(mut stream: TcpStream, responses: &Responses) -> std::io::Result
         .peer_addr()
         .map(|a| a.to_string())
         .unwrap_or_default();
+    // Which of our addresses it connected to (127.0.0.1 or a LAN address)
+    let local = stream
+        .local_addr()
+        .map(|a| a.to_string())
+        .unwrap_or_default();
     let (status, body) = match request_target(&request) {
         Some(target) => {
-            debug!("OSCQuery HTTP: {} GET {}", peer, target);
+            debug!(
+                "OSCQuery HTTP: {} GET {} (connected to {})",
+                peer, target, local
+            );
             responses.route(target)
         }
         None => (400, r#"{"error":"bad request"}"#.to_owned()),

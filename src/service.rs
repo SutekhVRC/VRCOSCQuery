@@ -23,8 +23,14 @@ const UNREGISTER_WAIT: Duration = Duration::from_millis(250);
 ///
 /// The services are advertised on this machine's network interfaces (mDNS
 /// doesn't use loopback), and the HTTP server listens on all of them, so
-/// VRChat can reach it at whichever address it sees. `HOST_INFO` still
-/// gives the OSC address the app chose, e.g. 127.0.0.1.
+/// VRChat can reach it at whichever address it sees.
+///
+/// **Receive OSC on the LAN address too.** VRChat ignores `HOST_INFO`'s
+/// `OSC_IP` and sends to the machine's LAN address on `OSC_PORT` (still
+/// true as of 2026-11; see VRChatOSCQueryBugs.md). Bind the OSC socket to
+/// 0.0.0.0 (or the LAN address). A socket on 127.0.0.1 only gets nothing,
+/// while VRChat's sends to the LAN address fail. This opens the OSC port to
+/// the local network.
 ///
 /// It advertises two services, both named after the app:
 /// - `_oscjson._tcp`: the HTTP server, which VRChat queries. Its
@@ -34,12 +40,13 @@ const UNREGISTER_WAIT: Duration = Duration::from_millis(250);
 ///
 /// Stops advertising when [stopped](Self::stop) or dropped.
 ///
-/// **Keep the OSC socket bound** while the service runs, and for a while
-/// after stopping it. VRChat may keep sending to the port for a moment after
-/// the goodbye. Through Proton especially, failed sends to a closed port
-/// count toward VRChat's "OSC sending failed too often", after which VRChat
-/// stops sending OSC until it restarts. Never advertise a port nothing is
-/// listening on.
+/// **Keep the OSC socket bound for as long as the app runs**, and reuse the
+/// same port next time (e.g. save it). VRChat ignores the mDNS goodbye and
+/// keeps sending to a service it has found (over a minute in testing,
+/// probably until VRChat restarts). Failed sends to a closed port can count
+/// toward VRChat's "OSC sending failed too often" (seen through Proton),
+/// after which VRChat stops sending OSC until it restarts. Never advertise
+/// a port nothing is listening on.
 pub struct OscQueryService {
     osc_addr: SocketAddrV4,
     http_addr: SocketAddrV4,
@@ -55,7 +62,8 @@ impl OscQueryService {
     /// Starts advertising `osc_addr`, the address the app receives OSC on,
     /// under `name`. The HTTP server gets a free port.
     ///
-    /// If `osc_addr` is unspecified (0.0.0.0), `HOST_INFO` gives 127.0.0.1.
+    /// If `osc_addr` is unspecified (0.0.0.0, the usual choice: see the
+    /// type's docs), `HOST_INFO` gives 127.0.0.1.
     /// Must be called from within a tokio runtime.
     pub async fn start(name: &str, osc_addr: SocketAddrV4) -> Result<Self, OQError> {
         Self::start_with(name, osc_addr, true).await
@@ -195,12 +203,12 @@ impl OscQueryService {
         Ok(())
     }
 
-    /// Stops advertising: sends mDNS goodbyes so VRChat stops sending to
-    /// the port, shuts down mDNS and stops the HTTP server, freeing its
-    /// port. Dropping the service does the same.
+    /// Stops advertising: sends mDNS goodbyes, shuts down mDNS and stops
+    /// the HTTP server, freeing its port. Dropping the service does the
+    /// same.
     ///
-    /// Keep the OSC socket bound for a while afterwards (see the type's
-    /// docs): VRChat may still send for a moment.
+    /// VRChat ignores the goodbye and keeps sending OSC to the port, so
+    /// keep the OSC socket bound (see the type's docs).
     pub fn stop(mut self) {
         self.shut_down();
     }
