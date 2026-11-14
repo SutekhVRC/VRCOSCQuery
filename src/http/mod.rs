@@ -105,8 +105,15 @@ async fn answer(mut stream: TcpStream, responses: &Responses) -> std::io::Result
         .await
         .map_err(|_| std::io::Error::new(std::io::ErrorKind::TimedOut, "request timed out"))??;
 
+    let peer = stream
+        .peer_addr()
+        .map(|a| a.to_string())
+        .unwrap_or_default();
     let (status, body) = match request_target(&request) {
-        Some(target) => responses.route(target),
+        Some(target) => {
+            debug!("OSCQuery HTTP: {} GET {}", peer, target);
+            responses.route(target)
+        }
         None => (400, r#"{"error":"bad request"}"#.to_owned()),
     };
     let reason = match status {

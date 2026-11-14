@@ -93,7 +93,9 @@ fn find_blocking(
             Ok(ServiceEvent::ServiceResolved(service))
                 if service.get_fullname().starts_with(name_prefix) =>
             {
-                let Some(ip) = preferred_address(service.get_addresses().iter().copied()) else {
+                let Some(ip) =
+                    preferred_address(service.get_addresses().iter().map(|ip| ip.to_ip_addr()))
+                else {
                     continue;
                 };
                 break Some(Endpoint {

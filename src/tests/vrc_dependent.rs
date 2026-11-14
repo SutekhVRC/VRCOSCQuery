@@ -50,6 +50,13 @@ async fn reads_vrchats_avatar_parameters() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs VRChat"]
 async fn vrchat_sends_to_an_advertised_port() {
+    // Shows HTTP requests (did VRChat ask for HOST_INFO?) and, with
+    // RUST_LOG=vrcoscquery=debug,mdns_sd=debug, the mDNS traffic
+    let _ = env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or("vrcoscquery=debug"),
+    )
+    .is_test(true)
+    .try_init();
     let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
     socket
         .set_read_timeout(Some(Duration::from_millis(100)))
@@ -60,7 +67,10 @@ async fn vrchat_sends_to_an_advertised_port() {
     let service = OscQueryService::start("VRCOSCQuery Test", osc_addr)
         .await
         .unwrap();
-    println!("Advertising OSC on {osc_addr}; waiting up to 30 s for VRChat");
+    println!(
+        "Advertising OSC on {osc_addr} (HTTP on port {}); waiting up to 30 s for VRChat",
+        service.http_addr().port()
+    );
 
     let mut buffer = [0u8; 1536];
     let deadline = Instant::now() + Duration::from_secs(30);
