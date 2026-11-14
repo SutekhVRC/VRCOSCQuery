@@ -31,7 +31,7 @@ The service:
 - serves `/?HOST_INFO` (your OSC address) and a node tree with `/avatar/change`, which is what tells VRChat to send avatar data;
 - on stop or drop, sends mDNS goodbyes and frees its HTTP port.
 
-mDNS is done with [mdns-sd](https://crates.io/crates/mdns-sd), with one fix VRChat needs: VRChat browses with ANY questions (not PTR), and only accepts answers with the PTR in Answers and SRV/TXT/A in Additionals. mdns-sd only sends that for PTR questions, so the fix answers ANY questions for a service type the same way. Without it VRChat never finds the service. See [VRChatOSCQueryBugs.md](VRChatOSCQueryBugs.md).
+mDNS is done with [mdns-sd](https://crates.io/crates/mdns-sd), for now from a fork ([SutekhVRC/mdns-sd](https://github.com/SutekhVRC/mdns-sd/tree/answer-any-for-service-type)) with one fix VRChat needs, until it is merged upstream: VRChat browses with ANY questions (not PTR), and only accepts answers with the PTR in Answers and SRV/TXT/A in Additionals. mdns-sd only sends that for PTR questions, so the fix answers ANY questions for a service type the same way. Without it VRChat never finds the service. See [VRChatOSCQueryBugs.md](VRChatOSCQueryBugs.md).
 
 If VRChat started after your service and hasn't picked it up, `service.reannounce()` announces it again.
 
