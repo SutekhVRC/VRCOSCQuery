@@ -1,79 +1,37 @@
-use crate::OQError;
+//! mDNS service types and names used by OSCQuery.
 
-use super::info;
-use mdns_sd::{IfKind, ServiceDaemon, ServiceEvent, ServiceInfo};
-use std::net::SocketAddrV4;
-
+/// OSCQuery's HTTP (JSON) service. VRChat finds OSCQuery apps by this type.
 pub const OSC_JSON_SERVICE: &str = "_oscjson._tcp.local.";
+
+/// A plain OSC (UDP) service.
 pub const OSC_SERVICE: &str = "_osc._udp.local.";
 
-pub struct OQMDNSHandler {
-    service_daemon: ServiceDaemon,
-    service_info: ServiceInfo,
-}
+/// VRChat's services are named `VRChat-Client-<random>`.
+pub const VRCHAT_PREFIX: &str = "VRChat-Client-";
 
-impl OQMDNSHandler {
-    pub fn new(app_name: String, http_addr: SocketAddrV4) -> Result<Self, mdns_sd::Error> {
-        let mdns_properties = [("mjau", "grr")];
-        let ip_addr = *http_addr.ip();
-        let port = http_addr.port();
-
-        let service_info = ServiceInfo::new(
-            "_oscjson._tcp.local.",
-            app_name.as_str(),
-            format!("{}.oscjson.tcp.local.", app_name).as_str(),
-            ip_addr.to_string(),
-            port,
-            &mdns_properties[..],
-        )?;
-
-        let service_daemon = ServiceDaemon::new().expect("could not create service daemon");
-        service_daemon
-            .disable_interface(IfKind::IPv6)
-            .expect("could not disable IPv6 on service daemon");
-        Ok(OQMDNSHandler {
-            service_daemon,
-            service_info,
-        })
-    }
-
-    pub fn shutdown_daemon(&mut self) -> Result<(), OQError> {
-        self.service_daemon.shutdown()?;
-        Ok(())
-    }
-
-    pub fn register(&self) -> Result<(), OQError> {
-        self.service_daemon.register(self.service_info.clone())?;
-        info!("[+] Registered mDNS service.");
-        Ok(())
-    }
-
-    pub fn unregister(&self) -> Result<(), OQError> {
-        self.service_daemon
-            .unregister(self.service_info.get_type())?;
-        info!("[+] Unregistered {}", self.service_info.get_type());
-        Ok(())
+/// An mDNS-safe version of `name`: letters, digits and `-` only, so it can
+/// be used in an instance and host name.
+pub(crate) fn dns_label(name: &str) -> String {
+    let label: String = name
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    let label = label.trim_matches('-');
+    if label.is_empty() {
+        "OSCQuery".to_owned()
+    } else {
+        label.to_owned()
     }
 }
 
-pub fn get_target_service(
-    mdns_handler: &OQMDNSHandler,
-    match_prefix: String,
-    s_type: &'static str,
-) -> Result<ServiceInfo, OQError> {
-    let service_receiver = mdns_handler.service_daemon.browse(s_type)?;
-    info!("[*] mDNS browsing..");
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    loop {
-        if let Ok(event) = service_receiver.recv() {
-            match event {
-                ServiceEvent::ServiceResolved(service_info) => {
-                    if service_info.get_fullname().starts_with(&match_prefix) {
-                        return Ok(service_info);
-                    }
-                }
-                e => info!("[?] NOT RESOLVED {:?}", e),
-            }
-        }
+    #[test]
+    fn dns_label_keeps_only_safe_characters() {
+        assert_eq!(dns_label("VibeCheck"), "VibeCheck");
+        assert_eq!(dns_label("My App 2!"), "My-App-2");
+        assert_eq!(dns_label("  "), "OSCQuery");
     }
 }

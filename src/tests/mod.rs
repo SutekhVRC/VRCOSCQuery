@@ -1,8 +1,8 @@
-use super::*;
-use crate::node::OSCQueryNode;
+use crate::node::{OSCQueryNode, OSCQueryValue};
 use once_cell::sync::Lazy;
 use std::{collections::HashSet, fs};
 
+pub mod service;
 pub mod vrc_dependent;
 
 static ROOT_NODE: Lazy<OSCQueryNode> =
@@ -45,4 +45,22 @@ fn leaf_params_on_subnode() {
         "/avatar/parameters/OGB/Pen/Mesh/PenOthers",
     ]);
     assert_eq!(ogb_pen_params, expected)
+}
+
+#[test]
+fn leaves_expose_type_and_value() {
+    let pen = ROOT_NODE
+        .node_at_path("/avatar/parameters/OGB/Pen".to_string())
+        .unwrap();
+    assert_eq!(pen.type_tag(), None);
+    assert!(pen.value().is_none());
+    assert!(pen.children().count() > 0);
+
+    let leaves = pen.leaves();
+    assert_eq!(leaves.len(), 2);
+    for leaf in leaves {
+        assert_eq!(leaf.type_tag(), Some("f"));
+        assert!(matches!(leaf.value(), Some([OSCQueryValue::FLOAT(_)])));
+        assert_eq!(leaf.children().count(), 0);
+    }
 }

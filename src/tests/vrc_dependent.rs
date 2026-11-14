@@ -1,85 +1,78 @@
-use std::net::Ipv4Addr;
+//! Tests that need VRChat running on this machine, with OSC enabled.
+//! Run them with `cargo test -- --ignored --nocapture vrc_dependent`.
 
-use super::*;
+use std::net::{SocketAddr, UdpSocket};
+use std::time::{Duration, Instant};
 
-#[test]
-#[ignore]
-fn instantiate_10_seconds() {
-    let osc_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 9069);
-    let http_addr = SocketAddrV4::new(Ipv4Addr::new(172, 19, 19, 244), 8080);
+use crate::discovery;
+use crate::OscQueryService;
 
-    let mut instance = OSCQuery::new("VibeCheck".to_string(), http_addr, osc_addr);
-    instance.start_http_json().ok();
-    instance.register_mdns_service().ok();
+const TIMEOUT: Duration = Duration::from_secs(5);
 
-    let _resolved_vrc_service =
-        instance.mdns_search("VRChat-Client-".to_string(), OSC_JSON_SERVICE);
-    std::thread::sleep(Duration::from_secs(10));
-
-    info!("[*] Stopping JSON service..");
-    instance.stop_http_json().ok();
-    info!("[+] JSON service shutdown.");
-
-    info!("[*] Stopping mDNS listener..");
-    instance.unregister_mdns_service();
-    info!("[+] mDNS listener shutdown.");
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs VRChat"]
+async fn finds_vrchat_and_its_osc_port() {
+    let vrchat = discovery::find_vrchat(TIMEOUT)
+        .await
+        .unwrap()
+        .expect("VRChat's OSCQuery service wasn't found");
+    let info = discovery::host_info(&vrchat, TIMEOUT).await.unwrap();
+    println!(
+        "Found {} at {}: receives OSC on {}:{}",
+        vrchat.name, vrchat.addr, info.osc_ip, info.osc_port
+    );
 }
 
-#[test]
-#[ignore]
-fn test_node_parse() {
-    let osc_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 9069);
-    let http_addr = SocketAddrV4::new(Ipv4Addr::new(172, 19, 19, 244), 8080);
-
-    let mut instance = OSCQuery::new("VibeCheck".to_string(), http_addr, osc_addr);
-    instance.start_http_json().ok();
-    instance.register_mdns_service().ok();
-
-    instance
-        .populate_vrc_params("VRChat-Client-".to_owned(), OSC_JSON_SERVICE)
-        .ok();
-    std::thread::sleep(Duration::from_secs(10));
-
-    info!("[*] Stopping JSON service..");
-    instance.stop_http_json().ok();
-    info!("[+] JSON service shutdown.");
-
-    info!("[*] Stopping mDNS listener..");
-    instance.unregister_mdns_service();
-    instance.shutdown_mdns().ok();
-    info!("[+] mDNS listener shutdown.");
-}
-
-#[test]
-#[ignore]
-fn test_vrchat_force_discover() {
-    let osc_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 9069);
-    let http_addr = SocketAddrV4::new(Ipv4Addr::new(172, 19, 19, 244), 8080);
-
-    let mut instance = OSCQuery::new("VibeCheck".to_string(), http_addr, osc_addr);
-    instance.start_http_json().ok();
-
-    loop {
-        //instance.register_mdns_service();
-        //instance.unregister_mdns_service();
-        instance.attempt_force_vrc_response_detect(10).ok();
-        std::thread::sleep(Duration::from_secs(10));
-    }
-}
-
-#[test]
-#[ignore]
-fn detect_vrchat() {
-    let osc_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 9069);
-    let http_addr = SocketAddrV4::new(Ipv4Addr::new(172, 19, 19, 244), 8080);
-
-    let mut instance = OSCQuery::new("VibeCheck".to_string(), http_addr, osc_addr);
-    let resolved_vrc_service = instance
-        .mdns_search("VRChat-Client-".to_string(), OSC_JSON_SERVICE)
-        .ok()
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs VRChat"]
+async fn reads_vrchats_avatar_parameters() {
+    let vrchat = discovery::find_vrchat(TIMEOUT)
+        .await
+        .unwrap()
+        .expect("VRChat's OSCQuery service wasn't found");
+    let parameters = discovery::node(&vrchat, "/avatar/parameters", TIMEOUT)
+        .await
         .unwrap();
-    info!(
-        "[+] Got VRChat OSC JSON: {}",
-        resolved_vrc_service.get_hostname()
+    let leaves = parameters.leaves();
+    println!("{} avatar parameters", leaves.len());
+    for leaf in leaves.iter().take(10) {
+        println!("  {} {:?}", leaf.full_path, leaf.value());
+    }
+    assert!(!leaves.is_empty());
+}
+
+/// Advertises a service and checks VRChat sends OSC to it. Move around or
+/// change a parameter in VRChat while it runs.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs VRChat"]
+async fn vrchat_sends_to_an_advertised_port() {
+    let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
+    socket
+        .set_read_timeout(Some(Duration::from_millis(200)))
+        .unwrap();
+    let SocketAddr::V4(osc_addr) = socket.local_addr().unwrap() else {
+        unreachable!()
+    };
+    let service = OscQueryService::start("VRCOSCQuery Test", osc_addr)
+        .await
+        .unwrap();
+    println!(
+        "Advertising OSC on {}; waiting up to 30 s for VRChat",
+        osc_addr
+    );
+
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let mut buffer = [0u8; 1536];
+    let mut received = 0;
+    while Instant::now() < deadline && received < 20 {
+        if socket.recv(&mut buffer).is_ok() {
+            received += 1;
+        }
+    }
+    service.stop();
+    println!("Received {} OSC packets", received);
+    assert!(
+        received > 0,
+        "VRChat didn't send anything to the advertised port"
     );
 }

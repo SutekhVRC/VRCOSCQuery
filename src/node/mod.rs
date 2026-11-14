@@ -75,17 +75,67 @@ impl OSCQueryNode {
             .collect::<String>();
 
         let child = node.contents.get(&next_parameter)?;
-        return child.node_at_path(path);
+        child.node_at_path(path)
+    }
+
+    /// The node's OSCQuery access: 0 none, 1 read, 2 write, 3 both.
+    pub fn access(&self) -> i8 {
+        self.access
+    }
+
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    /// A leaf's OSC type tag (e.g. `f`, `i`, `T`, `s`). `None` for a node
+    /// with children.
+    pub fn type_tag(&self) -> Option<&str> {
+        match &self.data {
+            NodeData::Leaf(leaf) => Some(&leaf._type),
+            NodeData::Internal(_) => None,
+        }
+    }
+
+    /// A leaf's current value(s). `None` for a node with children, or a
+    /// leaf without a value.
+    pub fn value(&self) -> Option<&[OSCQueryValue]> {
+        match &self.data {
+            NodeData::Leaf(leaf) => leaf.value.as_deref(),
+            NodeData::Internal(_) => None,
+        }
+    }
+
+    /// The node's children, by name. Empty for a leaf.
+    pub fn children(&self) -> impl Iterator<Item = (&str, &OSCQueryNode)> {
+        let contents = match &self.data {
+            NodeData::Internal(internal) => Some(&internal.contents),
+            NodeData::Leaf(_) => None,
+        };
+        contents
+            .into_iter()
+            .flat_map(|c| c.iter().map(|(name, node)| (name.as_str(), node)))
+    }
+
+    /// Every leaf under this node (or the node itself, if it's a leaf).
+    pub fn leaves(&self) -> Vec<&OSCQueryNode> {
+        match &self.data {
+            NodeData::Leaf(_) => vec![self],
+            NodeData::Internal(internal) => internal
+                .contents
+                .values()
+                .flat_map(|node| node.leaves())
+                .collect(),
+        }
     }
 
     pub fn leaf_params(&self) -> Vec<&str> {
-        return match &self.data {
+        match &self.data {
             NodeData::Leaf(_) => vec![&self.full_path],
             NodeData::Internal(internal) => internal
                 .contents
-                .iter()
-                .flat_map(|(_, node)| node.leaf_params())
+                .values()
+                .flat_map(|node| node.leaf_params())
                 .collect(),
-        };
+        }
     }
 }

@@ -1,110 +1,199 @@
-use super::info;
-use crate::{http::json_models::HostInfo, OQError};
-use std::{
-    io,
-    net::SocketAddrV4,
-    sync::atomic::{AtomicBool, Ordering},
-};
-use tokio::{
-    net::{TcpListener, TcpStream},
-    sync::watch::Receiver,
-};
+//! The OSCQuery HTTP server an [`OscQueryService`](crate::OscQueryService)
+//! runs, and the JSON models it serves.
+//!
+//! Routes:
+//! - `/?HOST_INFO`: the service's name and OSC address ([`HostInfo`]).
+//! - `/` and any path in the node tree (e.g. `/avatar`): that node.
+//! - Anything else: 404.
+//!
+//! Each connection is answered on its own task and closed after one
+//! response, so a slow or stuck client can't hold up others.
 
 pub mod json_models;
 
-const HTTP_RESPONSE_BASE: &str = "HTTP/1.1 200\r\nContent-Type: application/json\r\n";
-const HTTP_INDEX: &str = "{\"DESCRIPTION\": \"root node\",\"FULL_PATH\": \"/\",\"ACCESS\": 0,\"CONTENTS\": {\"avatar\": {\"FULL_PATH\": \"/avatar\",\"ACCESS\": 0,\"CONTENTS\": {\"change\": {\"DESCRIPTION\": \"Avatar ID, updated whenever the user switches into a valid avatar.\",\"FULL_PATH\": \"/avatar/change\",\"ACCESS\": 1,\"TYPE\": \"s\",\"VALUE\": [\"avtr_id_lol\"]}}}}}";
+pub use json_models::{HostInfo, HostInfoExtensions};
 
-pub struct OQHTTPHandler<'hostinfo> {
-    thread_rx: Receiver<AtomicBool>,
-    bound_addr: Option<SocketAddrV4>,
-    host_info: HostInfo<'hostinfo>,
+use std::sync::Arc;
+use std::time::Duration;
+
+use log::{debug, trace};
+use serde_json::Value;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::watch;
+
+/// Longest a client may take to send its request.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Requests are small; anything longer is refused.
+const MAX_REQUEST: usize = 8 * 1024;
+
+/// What the server answers with, prepared once.
+pub(crate) struct Responses {
+    host_info: String,
+    tree: Value,
 }
 
-impl<'hostinfo> OQHTTPHandler<'hostinfo> {
-    pub fn new(
-        bind_addr: SocketAddrV4,
-        host_info: HostInfo<'hostinfo>,
-        thread_rx: Receiver<AtomicBool>,
-    ) -> Self {
-        OQHTTPHandler {
-            thread_rx,
-            bound_addr: Some(bind_addr),
-            host_info,
-        }
+impl Responses {
+    pub(crate) fn new(host_info: &HostInfo, tree: Value) -> Result<Self, serde_json::Error> {
+        Ok(Self {
+            host_info: serde_json::to_string(host_info)?,
+            tree,
+        })
     }
 
-    async fn http_route(&self, buffer: Vec<u8>, tcp_stream: &TcpStream) -> Result<(), OQError> {
-        if buffer.starts_with("GET / HTTP/".as_bytes()) {
-            let http_index = String::from_utf8_lossy(HTTP_INDEX.as_bytes());
-            let http_res = format!(
-                "{}Content-Length: {}\r\n\r\n{}",
-                HTTP_RESPONSE_BASE,
-                HTTP_INDEX.len(),
-                http_index
-            );
-            tcp_stream.try_write(http_res.as_bytes())?;
-        } else if buffer.starts_with("GET /?HOST_INFO HTTP/".as_bytes()) {
-            let h_info = serde_json::to_string(&self.host_info)?;
-            let http_res = format!(
-                "{}Content-Length: {}\r\n\r\n{}",
-                HTTP_RESPONSE_BASE,
-                h_info.len(),
-                h_info
-            );
-
-            let bytes_sent = tcp_stream.try_write(http_res.as_bytes())?;
-            info!("[+] Sent {} bytes", bytes_sent);
-        } else {
-            //LOLOLOL
-            return Err(OQError::InvalidHttpBuffer);
+    /// The status and JSON body for a request target such as `/?HOST_INFO`
+    /// or `/avatar`.
+    fn route(&self, target: &str) -> (u16, String) {
+        if target == "/?HOST_INFO" {
+            return (200, self.host_info.clone());
         }
-        Ok(())
+        // Other queries (e.g. ?VALUE) ask for one attribute; the whole node
+        // includes it
+        let path = target.split('?').next().unwrap_or("/");
+        match find_node(&self.tree, path) {
+            Some(node) => (200, node.to_string()),
+            None => (404, r#"{"error":"not found"}"#.to_owned()),
+        }
     }
+}
 
-    pub async fn handle_connection(&self, tcp_stream: &TcpStream) -> Result<(), OQError> {
-        let mut full_buffer = Vec::new();
-        let mut buffer: [u8; 1024] = [0x0; 1024];
-        tcp_stream.readable().await?;
+/// The node in `tree` whose FULL_PATH is `path`.
+fn find_node<'a>(tree: &'a Value, path: &str) -> Option<&'a Value> {
+    let path = if path.len() > 1 {
+        path.trim_end_matches('/')
+    } else {
+        path
+    };
+    if tree.get("FULL_PATH").and_then(Value::as_str) == Some(path) {
+        return Some(tree);
+    }
+    tree.get("CONTENTS")?
+        .as_object()?
+        .values()
+        .find_map(|child| find_node(child, path))
+}
 
-        loop {
-            match tcp_stream.try_read(&mut buffer) {
-                Ok(0) => break,
-                Ok(b) => {
-                    full_buffer.extend_from_slice(&buffer);
-                    if b < 1024 {
-                        break;
-                    };
-                    buffer.fill_with(|| 0x0);
+/// Answers requests until `shutdown` changes or its sender is dropped.
+pub(crate) async fn serve(
+    listener: TcpListener,
+    responses: Arc<Responses>,
+    mut shutdown: watch::Receiver<bool>,
+) {
+    loop {
+        tokio::select! {
+            _ = shutdown.changed() => break,
+            accepted = listener.accept() => match accepted {
+                Ok((stream, peer)) => {
+                    trace!("OSCQuery HTTP connection from {}", peer);
+                    let responses = responses.clone();
+                    tokio::spawn(async move {
+                        if let Err(e) = answer(stream, &responses).await {
+                            debug!("OSCQuery HTTP request from {} failed: {}", peer, e);
+                        }
+                    });
                 }
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => continue,
-                Err(_e) => break,
-            }
+                Err(e) => debug!("OSCQuery HTTP accept failed: {}", e),
+            },
         }
-
-        self.http_route(full_buffer, tcp_stream).await?;
-        Ok(())
     }
+    debug!("OSCQuery HTTP server stopped");
 }
 
-pub async fn start(http_handler: OQHTTPHandler<'_>) -> Result<(), OQError> {
-    let bound_addr = http_handler
-        .bound_addr
-        .ok_or_else(|| OQError::NoBoundAddress)?;
-    info!("[*] HTTP Start()");
-    let tcp_listener = TcpListener::bind(bound_addr).await?;
-    info!("[+] Bound HTTP service.");
+async fn answer(mut stream: TcpStream, responses: &Responses) -> std::io::Result<()> {
+    let request = tokio::time::timeout(REQUEST_TIMEOUT, read_request(&mut stream))
+        .await
+        .map_err(|_| std::io::Error::new(std::io::ErrorKind::TimedOut, "request timed out"))??;
 
-    let mut state = true;
-    while state {
-        if let Ok((s, a)) = tcp_listener.accept().await {
-            info!("[+] Got connection from: {}", a);
-            http_handler.handle_connection(&s).await?;
+    let (status, body) = match request_target(&request) {
+        Some(target) => responses.route(target),
+        None => (400, r#"{"error":"bad request"}"#.to_owned()),
+    };
+    let reason = match status {
+        200 => "OK",
+        404 => "Not Found",
+        _ => "Bad Request",
+    };
+    let response = format!(
+        "HTTP/1.1 {status} {reason}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+    stream.write_all(response.as_bytes()).await?;
+    stream.shutdown().await
+}
+
+/// Reads until the end of the request headers.
+async fn read_request(stream: &mut TcpStream) -> std::io::Result<String> {
+    let mut request = Vec::new();
+    let mut buffer = [0u8; 1024];
+    loop {
+        let read = stream.read(&mut buffer).await?;
+        if read == 0 {
+            break;
         }
-
-        if http_handler.thread_rx.has_changed()? {
-            state = http_handler.thread_rx.borrow().load(Ordering::SeqCst);
+        request.extend_from_slice(&buffer[..read]);
+        if request.windows(4).any(|w| w == b"\r\n\r\n") || request.len() >= MAX_REQUEST {
+            break;
         }
     }
-    Ok(())
+    Ok(String::from_utf8_lossy(&request).into_owned())
+}
+
+/// The target of a GET request line (`GET /?HOST_INFO HTTP/1.1`).
+fn request_target(request: &str) -> Option<&str> {
+    let mut parts = request.lines().next()?.split_whitespace();
+    if parts.next()? != "GET" {
+        return None;
+    }
+    let target = parts.next()?;
+    parts.next()?.starts_with("HTTP/").then_some(target)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn responses() -> Responses {
+        let info = HostInfo {
+            name: "Test".into(),
+            extensions: HostInfoExtensions::default(),
+            osc_ip: "127.0.0.1".into(),
+            osc_port: 9123,
+            osc_transport: "UDP".into(),
+        };
+        Responses::new(&info, crate::service::app_tree()).unwrap()
+    }
+
+    #[test]
+    fn routes_host_info_nodes_and_unknown_paths() {
+        let r = responses();
+        let (status, body) = r.route("/?HOST_INFO");
+        assert_eq!(status, 200);
+        assert!(body.contains("9123"));
+
+        for (target, path) in [
+            ("/", "/"),
+            ("/avatar", "/avatar"),
+            ("/avatar/", "/avatar"),
+            ("/avatar/change?VALUE", "/avatar/change"),
+        ] {
+            let (status, body) = r.route(target);
+            assert_eq!(status, 200, "{target}");
+            let node: Value = serde_json::from_str(&body).unwrap();
+            assert_eq!(node["FULL_PATH"], path, "{target}");
+        }
+
+        assert_eq!(r.route("/nope").0, 404);
+    }
+
+    #[test]
+    fn reads_the_target_of_get_requests_only() {
+        assert_eq!(
+            request_target("GET /?HOST_INFO HTTP/1.1\r\nHost: x\r\n\r\n"),
+            Some("/?HOST_INFO")
+        );
+        assert_eq!(request_target("POST / HTTP/1.1\r\n\r\n"), None);
+        assert_eq!(request_target("GET /\r\n"), None);
+        assert_eq!(request_target(""), None);
+    }
 }
