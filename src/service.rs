@@ -33,10 +33,18 @@ const UNREGISTER_WAIT: Duration = Duration::from_millis(250);
 /// - `_osc._udp`: the OSC port itself, for other OSC tools.
 ///
 /// Stops advertising when [stopped](Self::stop) or dropped.
+///
+/// **Keep the OSC socket bound** while the service runs, and for a while
+/// after stopping it. VRChat may keep sending to the port for a moment after
+/// the goodbye. Through Proton especially, failed sends to a closed port
+/// count toward VRChat's "OSC sending failed too often", after which VRChat
+/// stops sending OSC until it restarts. Never advertise a port nothing is
+/// listening on.
 pub struct OscQueryService {
     osc_addr: SocketAddrV4,
     http_addr: SocketAddrV4,
-    daemon: ServiceDaemon,
+    /// `None` when not advertised over mDNS (tests).
+    daemon: Option<ServiceDaemon>,
     services: Vec<ServiceInfo>,
     shutdown: watch::Sender<bool>,
     server: JoinHandle<()>,
@@ -50,6 +58,25 @@ impl OscQueryService {
     /// If `osc_addr` is unspecified (0.0.0.0), `HOST_INFO` gives 127.0.0.1.
     /// Must be called from within a tokio runtime.
     pub async fn start(name: &str, osc_addr: SocketAddrV4) -> Result<Self, OQError> {
+        Self::start_with(name, osc_addr, true).await
+    }
+
+    /// Like [`start`](Self::start), but only serves HTTP, without telling
+    /// anyone over mDNS. For tests: an advertised service is visible to a
+    /// running VRChat, which would send OSC to it.
+    #[cfg(test)]
+    pub(crate) async fn start_unadvertised(
+        name: &str,
+        osc_addr: SocketAddrV4,
+    ) -> Result<Self, OQError> {
+        Self::start_with(name, osc_addr, false).await
+    }
+
+    async fn start_with(
+        name: &str,
+        osc_addr: SocketAddrV4,
+        advertise_over_mdns: bool,
+    ) -> Result<Self, OQError> {
         let advertised_ip = if osc_addr.ip().is_unspecified() {
             Ipv4Addr::LOCALHOST
         } else {
@@ -117,7 +144,12 @@ impl OscQueryService {
             }
             Ok((daemon, services))
         };
-        let (daemon, services) = match advertise() {
+        let advertised = if advertise_over_mdns {
+            advertise().map(|(daemon, services)| (Some(daemon), services))
+        } else {
+            Ok((None, Vec::new()))
+        };
+        let (daemon, services) = match advertised {
             Ok(advertised) => advertised,
             Err(e) => {
                 let _ = shutdown.send(true);
@@ -155,8 +187,10 @@ impl OscQueryService {
     /// Announces the services again. Useful if VRChat started after the
     /// service and hasn't picked it up.
     pub fn reannounce(&self) -> Result<(), OQError> {
-        for service in &self.services {
-            self.daemon.register(service.clone())?;
+        if let Some(daemon) = &self.daemon {
+            for service in &self.services {
+                daemon.register(service.clone())?;
+            }
         }
         Ok(())
     }
@@ -164,6 +198,9 @@ impl OscQueryService {
     /// Stops advertising: sends mDNS goodbyes so VRChat stops sending to
     /// the port, shuts down mDNS and stops the HTTP server, freeing its
     /// port. Dropping the service does the same.
+    ///
+    /// Keep the OSC socket bound for a while afterwards (see the type's
+    /// docs): VRChat may still send for a moment.
     pub fn stop(mut self) {
         self.shut_down();
     }
@@ -173,20 +210,22 @@ impl OscQueryService {
             return;
         }
         self.stopped = true;
-        for service in &self.services {
-            match self.daemon.unregister(service.get_fullname()) {
-                Ok(status) => {
-                    let _ = status.recv_timeout(UNREGISTER_WAIT);
+        if let Some(daemon) = &self.daemon {
+            for service in &self.services {
+                match daemon.unregister(service.get_fullname()) {
+                    Ok(status) => {
+                        let _ = status.recv_timeout(UNREGISTER_WAIT);
+                    }
+                    Err(e) => warn!(
+                        "OSCQuery: couldn't unregister {}: {}",
+                        service.get_fullname(),
+                        e
+                    ),
                 }
-                Err(e) => warn!(
-                    "OSCQuery: couldn't unregister {}: {}",
-                    service.get_fullname(),
-                    e
-                ),
             }
-        }
-        if let Err(e) = self.daemon.shutdown() {
-            debug!("OSCQuery: mDNS shutdown failed: {}", e);
+            if let Err(e) = daemon.shutdown() {
+                debug!("OSCQuery: mDNS shutdown failed: {}", e);
+            }
         }
         let _ = self.shutdown.send(true);
         self.server.abort();

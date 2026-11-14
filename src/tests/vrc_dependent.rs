@@ -41,14 +41,18 @@ async fn reads_vrchats_avatar_parameters() {
     assert!(!leaves.is_empty());
 }
 
-/// Advertises a service and checks VRChat sends OSC to it. Move around or
-/// change a parameter in VRChat while it runs.
+/// Advertises a service and checks VRChat sends OSC to it, then stops
+/// advertising and measures how long VRChat keeps sending to the port.
+/// Move around or change a parameter in VRChat while it runs.
+///
+/// The socket stays bound until VRChat has been quiet for 5 seconds (up to
+/// 60 s after the goodbye), so VRChat never sends to a closed port.
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs VRChat"]
 async fn vrchat_sends_to_an_advertised_port() {
     let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
     socket
-        .set_read_timeout(Some(Duration::from_millis(200)))
+        .set_read_timeout(Some(Duration::from_millis(100)))
         .unwrap();
     let SocketAddr::V4(osc_addr) = socket.local_addr().unwrap() else {
         unreachable!()
@@ -56,21 +60,44 @@ async fn vrchat_sends_to_an_advertised_port() {
     let service = OscQueryService::start("VRCOSCQuery Test", osc_addr)
         .await
         .unwrap();
-    println!(
-        "Advertising OSC on {}; waiting up to 30 s for VRChat",
-        osc_addr
-    );
+    println!("Advertising OSC on {osc_addr}; waiting up to 30 s for VRChat");
 
-    let deadline = Instant::now() + Duration::from_secs(30);
     let mut buffer = [0u8; 1536];
+    let deadline = Instant::now() + Duration::from_secs(30);
     let mut received = 0;
-    while Instant::now() < deadline && received < 20 {
+    let mut first_at = None;
+    let started = Instant::now();
+    while Instant::now() < deadline && received < 50 {
         if socket.recv(&mut buffer).is_ok() {
             received += 1;
+            first_at.get_or_insert(started.elapsed());
         }
     }
+    println!("Received {received} OSC packets; first after {first_at:?}");
+
     service.stop();
-    println!("Received {} OSC packets", received);
+    let goodbye = Instant::now();
+    let mut after_goodbye = 0;
+    let mut last_at = None;
+    let mut last_packet = Instant::now();
+    while last_packet.elapsed() < Duration::from_secs(5)
+        && goodbye.elapsed() < Duration::from_secs(60)
+    {
+        if socket.recv(&mut buffer).is_ok() {
+            after_goodbye += 1;
+            last_packet = Instant::now();
+            last_at = Some(goodbye.elapsed());
+        }
+    }
+    println!(
+        "After the goodbye: {after_goodbye} packets, the last {last_at:?} after it{}",
+        if goodbye.elapsed() >= Duration::from_secs(60) {
+            " (VRChat was still sending after 60 s)"
+        } else {
+            ""
+        }
+    );
+    drop(socket);
     assert!(
         received > 0,
         "VRChat didn't send anything to the advertised port"

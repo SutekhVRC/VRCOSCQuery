@@ -30,7 +30,7 @@ fn http_endpoint(service: &OscQueryService) -> Endpoint {
 #[tokio::test(flavor = "multi_thread")]
 async fn serves_host_info_and_the_avatar_tree() {
     let (_socket, osc_addr) = free_osc_addr();
-    let service = OscQueryService::start("VRCOSCQuery Test", osc_addr)
+    let service = OscQueryService::start_unadvertised("VRCOSCQuery Test", osc_addr)
         .await
         .unwrap();
     let endpoint = http_endpoint(&service);
@@ -57,9 +57,10 @@ async fn serves_host_info_and_the_avatar_tree() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn advertises_localhost_for_an_unspecified_address() {
-    let service = OscQueryService::start("VRCOSCQuery Test", "0.0.0.0:9555".parse().unwrap())
-        .await
-        .unwrap();
+    let service =
+        OscQueryService::start_unadvertised("VRCOSCQuery Test", "0.0.0.0:9555".parse().unwrap())
+            .await
+            .unwrap();
     assert_eq!(service.osc_addr(), "127.0.0.1:9555".parse().unwrap());
     let info = discovery::host_info(&http_endpoint(&service), TIMEOUT)
         .await
@@ -70,7 +71,7 @@ async fn advertises_localhost_for_an_unspecified_address() {
 #[tokio::test(flavor = "multi_thread")]
 async fn stopping_frees_the_http_port() {
     let (_socket, osc_addr) = free_osc_addr();
-    let service = OscQueryService::start("VRCOSCQuery Test", osc_addr)
+    let service = OscQueryService::start_unadvertised("VRCOSCQuery Test", osc_addr)
         .await
         .unwrap();
     let http_addr = service.http_addr();
@@ -97,6 +98,10 @@ async fn discovery_gives_up_quietly_after_the_timeout() {
 
 /// Needs mDNS multicast to work on this machine (it usually does on a
 /// desktop; CI runners and sandboxes may block it).
+///
+/// It really advertises a service, so a running VRChat could find it and
+/// send it OSC: the socket stays bound until well after the goodbye. Still,
+/// avoid running it while VRChat is open.
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs mDNS multicast"]
 async fn finds_its_own_service_over_mdns() {
@@ -112,4 +117,10 @@ async fn finds_its_own_service_over_mdns() {
 
     let info = discovery::host_info(&found, TIMEOUT).await.unwrap();
     assert_eq!(info.osc_port, osc_addr.port());
+
+    // Keep the OSC socket bound after the goodbye, in case anything is
+    // still sending to it
+    service.stop();
+    tokio::time::sleep(Duration::from_secs(5)).await;
+    drop(_socket);
 }

@@ -32,6 +32,8 @@ The service:
 
 If VRChat started after your service and hasn't picked it up, `service.reannounce()` announces it again.
 
+**Keep your OSC socket bound** while the service runs and for a while after stopping it. VRChat may keep sending for a moment after the goodbye, and failed sends to a closed port (especially through Proton) count toward VRChat's "OSC sending failed too often", after which it stops sending OSC until it restarts. Never advertise a port nothing listens on.
+
 ## Find and read VRChat
 
 ```rust
@@ -55,9 +57,9 @@ if let Some(vrchat) = discovery::find_vrchat(timeout).await? {
 ## Tests
 
 ```bash
-cargo test                                    # everything that needs no network setup
-cargo test -- --ignored finds_its_own         # mDNS round trip (needs multicast on this machine)
+cargo test                                    # nothing is advertised on the network
+cargo test -- --ignored finds_its_own         # mDNS round trip (needs multicast; avoid while VRChat runs)
 cargo test -- --ignored --nocapture vrc_dependent   # needs VRChat running with OSC on
 ```
 
-`vrc_dependent::vrchat_sends_to_an_advertised_port` advertises a service and waits up to 30 seconds for VRChat to send it OSC: move around or change a parameter while it runs.
+`vrc_dependent::vrchat_sends_to_an_advertised_port` advertises a service and waits up to 30 seconds for VRChat to send it OSC (move around or change a parameter while it runs). It then stops advertising and reports how long VRChat kept sending, keeping the socket bound until VRChat has been quiet for 5 seconds.
