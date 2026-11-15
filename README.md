@@ -37,6 +37,7 @@ If VRChat started after your service and hasn't picked it up, `service.reannounc
 
 Things VRChat does that your app has to allow for (details in [VRChatOSCQueryBugs.md](VRChatOSCQueryBugs.md)):
 - **It ignores `OSC_IP`** and sends to this machine's LAN address on `OSC_PORT`. Bind your OSC socket to `0.0.0.0` (or the LAN address); a socket on `127.0.0.1` alone gets nothing. This opens the port to your local network.
+- **It keeps sending to 9001** as well, whatever it finds. On Linux/Proton, if nothing listens there, VRChat stops sending OSC altogether. Hold `127.0.0.1:9001` while it's free (bind it, don't read it).
 - **It ignores the goodbye** and keeps sending to a service it found, probably until VRChat restarts. Keep your OSC socket bound for as long as your app runs, and reuse the same port next time. Failed sends to a closed port can count toward VRChat's "OSC sending failed too often" (seen through Proton), after which it stops sending OSC until restarted. Never advertise a port nothing listens on.
 
 ## Find and read VRChat

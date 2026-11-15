@@ -47,6 +47,11 @@ const UNREGISTER_WAIT: Duration = Duration::from_millis(250);
 /// toward VRChat's "OSC sending failed too often" (seen through Proton),
 /// after which VRChat stops sending OSC until it restarts. Never advertise
 /// a port nothing is listening on.
+///
+/// **Hold VRChat's default port too.** VRChat keeps sending to
+/// `127.0.0.1:9001` whatever it finds over OSCQuery; through Proton, if
+/// nothing listens there, it stops sending OSC altogether. Bind 9001 while
+/// it's free (no need to read it).
 pub struct OscQueryService {
     osc_addr: SocketAddrV4,
     http_addr: SocketAddrV4,

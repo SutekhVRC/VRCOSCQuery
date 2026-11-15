@@ -61,3 +61,15 @@ These are bugs I find with the VRChat client's OSCQuery implementation.
 **Workaround:**
 - Keep the OSC port bound for as long as the app runs, and reuse the same port next time (save it), so VRChat never sends to a closed port. Failed sends to a closed port count toward VRChat's "OSC sending failed too often", after which it stops sending OSC until restarted (seen on Linux/Proton).
 - In that test the port was closed while VRChat was still sending, and VRChat's OSC did not die (another app was listening on 9001 throughout), so the limit may only count sends to some ports. Still, don't rely on it.
+
+## VRChat keeps sending to 9001
+
+**Behaviour:**
+- VRChat keeps sending to its default `127.0.0.1:9001` as well as to every OSCQuery service it finds. Finding a service doesn't replace the default.
+
+**Bug (Linux/Proton, tested 2026-11-14):**
+- With nothing listening on 9001, VRChat's sends there fail, and VRChat logs "OSC sending failed too often disabling for this session" and stops sending OSC entirely (to the OSCQuery service too) until it restarts. With an app moved to its own OSCQuery port, nothing may be on 9001 any more.
+
+**Workaround:**
+- While advertising, also hold `127.0.0.1:9001` if it's free: bind it and don't read it. The OS drops the data once the socket's buffer is full, and VRChat's sends succeed. The same data arrives on the advertised port. If another app has 9001, that app is listening; try again now and then in case it lets go.
+- Also keep any gap in listening short: an app that unbinds its OSC port for even a second while VRChat sends (e.g. when switching listeners) can hit the limit.
